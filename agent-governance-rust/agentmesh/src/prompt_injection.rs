@@ -60,14 +60,25 @@ pub enum Sensitivity {
 /// Detector configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DetectionConfig {
+    /// Detector sensitivity. `Balanced` is the default and aims to catch
+    /// high-confidence injection attempts without flagging ordinary security
+    /// administration questions.
     #[serde(default)]
     pub sensitivity: Sensitivity,
+    /// Additional regular expressions supplied by the embedding application.
+    /// Public findings expose hashes of these patterns, never the raw regex
+    /// bodies.
     #[serde(default)]
     pub custom_patterns: Vec<String>,
+    /// Case-insensitive exact substring deny-list. Entries must be at least
+    /// three characters long; public findings expose hashes, not raw entries.
     #[serde(default)]
     pub blocklist: Vec<String>,
+    /// Case-insensitive substring allow-list used to suppress overlapping
+    /// benign findings without suppressing unrelated malicious spans.
     #[serde(default)]
     pub allowlist: Vec<String>,
+    /// Maximum number of hash-only audit records retained in memory.
     #[serde(default = "default_audit_capacity")]
     pub audit_capacity: usize,
 }
@@ -94,7 +105,10 @@ pub struct PromptInjectionConfig {
 /// Per-call detection options.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DetectionOptions {
+    /// Caller-supplied source label for the audit record.
     pub source: String,
+    /// Canary tokens that must never be repeated by the model. Audit and
+    /// findings never expose the raw token values.
     pub canary_tokens: Vec<String>,
 }
 
@@ -110,11 +124,19 @@ impl Default for DetectionOptions {
 /// Outcome of scanning one prompt input.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DetectionResult {
+    /// Whether the detector found at least one signal at the configured
+    /// sensitivity threshold.
     pub is_injection: bool,
+    /// Highest threat level among retained findings.
     pub threat_level: ThreatLevel,
+    /// Dominant injection family for the highest-severity finding.
     pub injection_type: Option<InjectionType>,
+    /// Maximum confidence among retained findings, rounded to three decimals.
     pub confidence: f64,
+    /// Stable rule IDs or hashes only. Never raw prompt text, canary values,
+    /// blocklist entries, or custom regex bodies.
     pub matched_patterns: Vec<String>,
+    /// Human-readable category summary. Kept generic; no raw evidence.
     pub explanation: String,
 }
 
@@ -145,9 +167,14 @@ impl DetectionResult {
 /// Hash-only audit record for a detection attempt.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuditRecord {
+    /// Millisecond timestamp from the Unix epoch.
     pub timestamp_unix_ms: u128,
+    /// SHA-256 hex hash of the scanned input. Raw input is intentionally not
+    /// retained.
     pub input_hash: String,
+    /// Caller-supplied source label.
     pub source: String,
+    /// Typed detector result with hash/rule-id evidence only.
     pub result: DetectionResult,
 }
 

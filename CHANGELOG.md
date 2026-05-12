@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Rust prompt-injection detector** - `agentmesh::prompt_injection` with
+  typed detection results, configurable sensitivity/allowlist/blocklist/custom
+  patterns, bounded hash-only audit records, and a detector-backed
+  `PromptDefenseEvaluator` compatibility path.
 
 ## [3.5.0] - 2026-05-07
 
