@@ -1,0 +1,24 @@
+annotations:
+  - checks:
+      - ci-tests
+    reasons:
+      - reason: not-detected # PR checks run in GitHub Actions; repo-level Scorecard scans can miss PR context on this fork.
+  - checks:
+      - cii-best-practices
+      - code-review
+      - maintained
+    reasons:
+      - reason: not-applicable # This is a downstream fork; these maturity signals should be judged on upstream plus fork PR policy.
+  - checks:
+      - packaging
+      - signed-releases
+    reasons:
+      - reason: not-applicable # This fork is not currently a release publisher; add signed releases when publishing from the fork.
+  - checks:
+      - pinned-dependencies
+    reasons:
+      - reason: remediated # Direct vulnerable pins were remediated; inherited broad pinning cleanup belongs in a separate supply-chain PR.
+  - checks:
+      - vulnerabilities
+    reasons:
+      - reason: remediated # Direct OSV-scanned vulnerable pins are fixed on this PR branch before merging to fork main.
