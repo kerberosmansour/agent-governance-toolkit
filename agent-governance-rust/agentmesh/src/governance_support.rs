@@ -184,8 +184,8 @@ impl AuditSink for FileAuditSink {
         // serde_json::to_string_pretty fails on non-finite floats (NaN, ±Inf)
         // inside `details` because JSON has no representation for them.
         // Propagate the error instead of panicking on the audit-write path.
-        let serialized =
-            serde_json::to_string_pretty(&entries).map_err(std::io::Error::other)?;
+        let serialized = serde_json::to_string_pretty(&entries)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
         fs::write(&self.path, serialized)
     }
 }
@@ -959,8 +959,7 @@ impl PolicyCondition {
                 .as_str()
                 .zip(self.expected.as_str())
                 .and_then(|(actual, expected)| {
-                    crate::regex_cache::compiled_regex(expected)
-                        .map(|regex| regex.is_match(actual))
+                    crate::regex_cache::compiled_regex(expected).map(|regex| regex.is_match(actual))
                 })
                 .unwrap_or(false),
         }
@@ -1001,7 +1000,7 @@ fn parse_cedar_rules(
 }
 
 fn collect_policy_bodies(source: &str, rule_name: &str, keyword: &str) -> Vec<String> {
-    let start = format!("{rule_name}");
+    let start = rule_name.to_string();
     let mut results = Vec::new();
     let mut current = String::new();
     let mut collecting = false;
@@ -1467,8 +1466,8 @@ impl FederationStore for FileFederationStore {
         self.inner.save_policy(policy.clone())?;
         let mut policies = self.read_policy_map();
         policies.insert(policy.organization_id.clone(), policy);
-        let serialized =
-            serde_json::to_string_pretty(&policies).map_err(std::io::Error::other)?;
+        let serialized = serde_json::to_string_pretty(&policies)
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
         fs::write(&self.path, serialized)
     }
 

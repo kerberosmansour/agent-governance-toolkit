@@ -64,9 +64,9 @@ setup(
         ],
         # Development dependencies
         "dev": [
-            "pytest>=7.4.0",
+            "pytest>=9.0.3; python_version >= '3.10'",
             "pytest-asyncio>=0.21.0",
-            "streamlit>=1.28.0",
+            "streamlit>=1.54.0; python_version >= '3.10'",
             "jupyter>=1.0.0",
         ],
         # All optional dependencies
@@ -75,9 +75,9 @@ setup(
             "cmvk>=1.0.0",
             "openai>=1.0.0",
             "anthropic>=0.7.0",
-            "pytest>=7.4.0",
+            "pytest>=9.0.3; python_version >= '3.10'",
             "pytest-asyncio>=0.21.0",
-            "streamlit>=1.28.0",
+            "streamlit>=1.54.0; python_version >= '3.10'",
             "jupyter>=1.0.0",
         ],
     },

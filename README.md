@@ -184,6 +184,7 @@ result := client.ExecuteWithGovernance("data.read", nil)
 | **Governance Dashboard** | Real-time fleet visibility — health, trust, compliance, audit events | [Dashboard](examples/demos/governance-dashboard/) |
 | **Unified CLI** | `agt verify`, `agt red-team`, `agt doctor`, `agt lint-policy` — one command for everything | [CLI](agent-governance-python/agent-compliance/src/agent_compliance/cli/agt.py) |
 | **PromptDefense Evaluator** | 12-vector prompt injection audit for compliance testing | [Evaluator](agent-governance-python/agent-compliance/src/agent_compliance/prompt_defense.py) |
+| **Rust Prompt Injection Detector** | Deterministic prompt-injection detection with sensitivity controls, allow/block lists, custom rules, and hash-only audit records | [Rust SDK](agent-governance-rust/agentmesh/src/prompt_injection.rs) |
 
 ---
 
@@ -360,4 +361,3 @@ trademarks or logos is subject to and must follow
 [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.
-

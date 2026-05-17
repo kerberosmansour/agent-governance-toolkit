@@ -55,7 +55,7 @@ USER root
 RUN pip install --no-cache-dir \
     pytest==8.3.4 \
     pytest-cov==6.0.0 \
-    black==24.10.0 \
+    black==26.3.1 \
     flake8==7.1.1 \
     mypy==1.13.0 \
     ipython==8.30.0 \
