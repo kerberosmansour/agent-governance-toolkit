@@ -164,11 +164,7 @@ pub trait SandboxProvider {
     ) -> Result<ExecutionHandle, String>;
 
     /// Tear down the sandbox and release resources.
-    fn destroy_session(
-        &mut self,
-        agent_id: &str,
-        session_id: &str,
-    ) -> Result<(), String>;
+    fn destroy_session(&mut self, agent_id: &str, session_id: &str) -> Result<(), String>;
 
     /// Check if this sandbox provider is available.
     fn is_available(&self) -> bool;
@@ -390,11 +386,7 @@ impl SandboxProvider for DockerSandboxProvider {
         })
     }
 
-    fn destroy_session(
-        &mut self,
-        agent_id: &str,
-        session_id: &str,
-    ) -> Result<(), String> {
+    fn destroy_session(&mut self, agent_id: &str, session_id: &str) -> Result<(), String> {
         let key = (agent_id.to_string(), session_id.to_string());
         let name = match self.containers.remove(&key) {
             Some(n) => n,
