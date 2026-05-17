@@ -1,6 +1,6 @@
 module github.com/microsoft/agent-governance-toolkit/sidecar
 
-go 1.21
+go 1.26.3
 
 require (
 	github.com/gin-gonic/gin v1.9.1

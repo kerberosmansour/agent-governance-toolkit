@@ -130,6 +130,7 @@ isort
 mypy
 Pydantic
 pytest
+pynacl
 pyupgrade
 xfail
 elif
