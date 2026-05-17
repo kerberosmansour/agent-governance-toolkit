@@ -8,13 +8,15 @@ on:
 
 # Workflow-level permissions must be read-only for Scorecard verification.
 # Write permissions are scoped to the job level below.
-permissions: read-all
+permissions:
+  contents: read
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
       id-token: write
     steps:

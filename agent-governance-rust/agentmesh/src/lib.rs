@@ -300,12 +300,12 @@ policies:
         }
         let entries = client.audit.entries();
         assert_eq!(entries.len(), 5);
-        for i in 0..5 {
-            assert_eq!(entries[i].seq, i as u64);
+        for (i, entry) in entries.iter().enumerate().take(5) {
+            assert_eq!(entry.seq, i as u64);
         }
         // Each entry's prev_hash links to the previous entry's hash
-        for i in 1..5 {
-            assert_eq!(entries[i].previous_hash, entries[i - 1].hash);
+        for window in entries.windows(2) {
+            assert_eq!(window[1].previous_hash, window[0].hash);
         }
         assert!(client.audit.verify());
     }

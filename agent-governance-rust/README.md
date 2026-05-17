@@ -68,8 +68,9 @@ control-plane utilities such as kill-switch and SLO helpers.
 The crate also exposes `agentmesh::prompt_injection` for deterministic prompt
 guarding in Rust agents. The detector reports typed `InjectionType` and
 `ThreatLevel` values, supports optional canary tokens plus allow/block/custom
-pattern configuration, and keeps its bounded audit log hash-only so raw prompts,
-canaries, blocklist entries, and custom regex bodies are not retained.
+pattern configuration, applies normalized and intent-aware blocklist matching,
+and keeps its bounded audit log hash-only so raw prompts, canaries, blocklist
+entries, custom regex bodies, and unsafe source labels are not retained.
 
 ```rust
 use agentmesh::prompt_injection::PromptInjectionDetector;
