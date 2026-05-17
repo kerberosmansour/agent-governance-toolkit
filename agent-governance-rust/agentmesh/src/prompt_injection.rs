@@ -471,8 +471,9 @@ impl PromptInjectionDetector {
 
     fn scan_encoding(&self, text: &str) -> Vec<Finding> {
         let mut findings = Vec::new();
+        let lower = text.to_ascii_lowercase();
 
-        if text.to_ascii_lowercase().contains("rot13") {
+        if lower.contains("rot13") {
             findings.push(Finding::new(
                 InjectionType::EncodingAttack,
                 ThreatLevel::Medium,
@@ -480,7 +481,7 @@ impl PromptInjectionDetector {
                 "encoding:rot13_reference",
             ));
         }
-        if text.to_ascii_lowercase().contains("base64 decode") {
+        if lower.contains("base64 decode") {
             findings.push(Finding::new(
                 InjectionType::EncodingAttack,
                 ThreatLevel::Medium,
@@ -488,21 +489,19 @@ impl PromptInjectionDetector {
                 "encoding:base64_reference",
             ));
         }
-        if text.contains("\\x") {
-            findings.push(Finding::new(
-                InjectionType::EncodingAttack,
-                ThreatLevel::Medium,
-                0.7,
-                "encoding:hex_escape",
-            ));
-        }
-        if text.contains("\\u") {
-            findings.push(Finding::new(
-                InjectionType::EncodingAttack,
-                ThreatLevel::Medium,
-                0.7,
-                "encoding:unicode_escape",
-            ));
+
+        if let Some(decoded) = decode_backslash_escapes(text) {
+            let normalized = normalize_for_detection(&decoded);
+            if contains_prompt_injection_intent(&normalized)
+                || contains_decoded_malicious_keyword(&normalized)
+            {
+                findings.push(Finding::new(
+                    InjectionType::EncodingAttack,
+                    ThreatLevel::High,
+                    0.9,
+                    "encoding:escaped_instruction",
+                ));
+            }
         }
 
         for token in text
@@ -914,6 +913,95 @@ fn contains_decoded_malicious_keyword(lower: &str) -> bool {
     ]
     .iter()
     .any(|needle| lower.contains(needle))
+}
+
+fn decode_backslash_escapes(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut decoded = String::with_capacity(text.len());
+    let mut index = 0;
+    let mut changed = false;
+
+    while index < bytes.len() {
+        if bytes[index] == b'\\' && index + 1 < bytes.len() {
+            match bytes[index + 1] {
+                b'x' if index + 3 < bytes.len() => {
+                    if let Some(byte) = decode_hex_byte(&bytes[index + 2..index + 4]) {
+                        decoded.push(char::from(byte));
+                        index += 4;
+                        changed = true;
+                        continue;
+                    }
+                }
+                b'u' => {
+                    if index + 2 < bytes.len() && bytes[index + 2] == b'{' {
+                        if let Some((ch, end)) = decode_braced_unicode_escape(bytes, index + 3) {
+                            decoded.push(ch);
+                            index = end + 1;
+                            changed = true;
+                            continue;
+                        }
+                    } else if index + 5 < bytes.len() {
+                        if let Some(ch) = decode_hex_scalar(&bytes[index + 2..index + 6]) {
+                            decoded.push(ch);
+                            index += 6;
+                            changed = true;
+                            continue;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let Some(ch) = text[index..].chars().next() else {
+            break;
+        };
+        decoded.push(ch);
+        index += ch.len_utf8();
+    }
+
+    changed.then_some(decoded)
+}
+
+fn decode_braced_unicode_escape(bytes: &[u8], start: usize) -> Option<(char, usize)> {
+    let mut end = start;
+    while end < bytes.len() && bytes[end] != b'}' {
+        if end - start >= 6 {
+            return None;
+        }
+        end += 1;
+    }
+    if end >= bytes.len() || end == start {
+        return None;
+    }
+    decode_hex_scalar(&bytes[start..end]).map(|ch| (ch, end))
+}
+
+fn decode_hex_byte(digits: &[u8]) -> Option<u8> {
+    let mut value = 0_u8;
+    for digit in digits {
+        value = value.checked_mul(16)?;
+        value = value.checked_add(hex_value(*digit)? as u8)?;
+    }
+    Some(value)
+}
+
+fn decode_hex_scalar(digits: &[u8]) -> Option<char> {
+    let mut value = 0_u32;
+    for digit in digits {
+        value = value.checked_mul(16)?;
+        value = value.checked_add(hex_value(*digit)?)?;
+    }
+    char::from_u32(value)
+}
+
+fn hex_value(byte: u8) -> Option<u32> {
+    match byte {
+        b'0'..=b'9' => Some((byte - b'0') as u32),
+        b'a'..=b'f' => Some((byte - b'a' + 10) as u32),
+        b'A'..=b'F' => Some((byte - b'A' + 10) as u32),
+        _ => None,
+    }
 }
 
 fn normalize_for_detection(text: &str) -> String {
