@@ -16,16 +16,67 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static ATOMIC_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn unix_secs_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+/// Replaces a file through a synced temp-file write and rename so readers do not observe partial JSON.
+fn write_file_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let temp_path = atomic_temp_path(path)?;
+    let write_result = (|| {
+        let mut temp = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp_path)?;
+        temp.write_all(contents)?;
+        temp.sync_all()
+    })();
+
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    if let Err(error) = fs::rename(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    Ok(())
+}
+
+fn atomic_temp_path(path: &Path) -> std::io::Result<PathBuf> {
+    let file_name = path.file_name().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "atomic write target must include a file name",
+        )
+    })?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let counter = ATOMIC_WRITE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let process_id = std::process::id();
+    let temp_name = format!(
+        ".{}.{}.{}.tmp",
+        file_name.to_string_lossy(),
+        process_id,
+        counter
+    );
+    Ok(parent.join(temp_name))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,12 +268,12 @@ impl AuditSink for FileAuditSink {
             Vec::new()
         };
         entries.push(entry.clone());
-        // serde_json::to_string_pretty fails on non-finite floats (NaN, ±Inf)
+        // serde_json serialization fails on non-finite floats (NaN, ±Inf)
         // inside `details` because JSON has no representation for them.
         // Propagate the error instead of panicking on the audit-write path.
-        let serialized = serde_json::to_string_pretty(&entries)
+        let serialized = serde_json::to_vec(&entries)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-        fs::write(&self.path, serialized)
+        write_file_atomic(&self.path, &serialized)
     }
 }
 
@@ -1541,9 +1592,9 @@ impl FederationStore for FileFederationStore {
         self.inner.save_policy(policy.clone())?;
         let mut policies = self.read_policy_map();
         policies.insert(policy.organization_id.clone(), policy);
-        let serialized = serde_json::to_string_pretty(&policies)
+        let serialized = serde_json::to_vec(&policies)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-        fs::write(&self.path, serialized)
+        write_file_atomic(&self.path, &serialized)
     }
 
     fn get_policy(&self, organization_id: &str) -> Option<OrgPolicy> {
@@ -2082,6 +2133,97 @@ mod tests {
 
         assert!(store.get_policy("org-a").is_some());
         assert!(store.get_policy("org-b").is_some());
+    }
+
+    #[test]
+    fn file_audit_sink_writes_compact_json() {
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        let sink = FileAuditSink::new(temp.path());
+
+        sink.record(&AuditEntry {
+            seq: 0,
+            timestamp: "2026-01-01T00:00:00Z".into(),
+            agent_id: "agent-1".into(),
+            action: "data.read".into(),
+            decision: "allow".into(),
+            previous_hash: String::new(),
+            hash: "abc123".into(),
+        })
+        .unwrap();
+
+        let raw = fs::read_to_string(temp.path()).unwrap();
+        let entries = serde_json::from_str::<Vec<AuditEntry>>(&raw).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(!raw.contains('\n'));
+        assert!(!raw.contains("  \""));
+    }
+
+    #[test]
+    fn file_federation_store_writes_compact_json() {
+        let temp = tempfile::NamedTempFile::new().unwrap();
+        let store = FileFederationStore::new(temp.path());
+
+        store
+            .save_policy(OrgPolicy {
+                organization_id: "org-a".into(),
+                rules: vec![OrgPolicyRule {
+                    name: "allow-read".into(),
+                    category: PolicyCategory::DataAccess,
+                    action_pattern: "data.read".into(),
+                    decision: "allow".into(),
+                }],
+            })
+            .unwrap();
+
+        let raw = fs::read_to_string(temp.path()).unwrap();
+        let policies = serde_json::from_str::<HashMap<String, OrgPolicy>>(&raw).unwrap();
+        assert!(policies.contains_key("org-a"));
+        assert!(!raw.contains('\n'));
+        assert!(!raw.contains("  \""));
+    }
+
+    #[test]
+    fn atomic_temp_path_generates_distinct_names() {
+        let target = Path::new("audit.json");
+
+        let first = atomic_temp_path(target).unwrap();
+        let second = atomic_temp_path(target).unwrap();
+
+        assert_ne!(first, second);
+        assert_eq!(first.parent(), Some(Path::new(".")));
+    }
+
+    #[test]
+    fn write_file_atomic_returns_err_when_parent_is_missing() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("missing").join("audit.json");
+
+        let result = write_file_atomic(&target, b"[]");
+
+        assert!(result.is_err());
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn write_file_atomic_cleans_temp_file_when_rename_fails() {
+        let root = tempfile::tempdir().unwrap();
+        let target = root.path().join("audit.json");
+        fs::create_dir(&target).unwrap();
+
+        let result = write_file_atomic(&target, br#"{"ok":true}"#);
+
+        assert!(result.is_err());
+        assert!(target.is_dir());
+
+        let leaked_temp_files = fs::read_dir(root.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".audit.json.") && name.ends_with(".tmp"))
+            .collect::<Vec<_>>();
+        assert!(
+            leaked_temp_files.is_empty(),
+            "atomic write leaked temp files after rename failure: {leaked_temp_files:?}"
+        );
     }
 
     /// Regression: prior to fallibilizing the trait, FileFederationStore

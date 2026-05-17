@@ -17,9 +17,7 @@ use std::time::Instant;
 
 /// Validate that an environment variable name contains only safe characters.
 fn validate_env_key(key: &str) -> Result<(), String> {
-    if key.is_empty()
-        || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
+    if key.is_empty() || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err(format!("Invalid environment variable name: {:?}", key));
     }
     Ok(())

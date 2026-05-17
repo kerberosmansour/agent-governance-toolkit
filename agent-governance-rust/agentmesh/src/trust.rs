@@ -213,7 +213,10 @@ impl TrustManager {
     fn load_from_disk(&self) {
         if let Some(path) = &self.config.persist_path {
             let path = std::path::Path::new(path);
-            if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            if path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
                 return;
             }
             if let Ok(data) = std::fs::read_to_string(path) {
@@ -232,7 +235,10 @@ impl TrustManager {
     fn save_to_disk(&self) {
         if let Some(path) = &self.config.persist_path {
             let path = std::path::Path::new(path);
-            if path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+            if path
+                .components()
+                .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
                 return;
             }
             let agents = self.agents.read().unwrap_or_else(|e| e.into_inner());

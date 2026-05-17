@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Rust prompt guard** - added custom configuration and audit interpretation examples, tuned escaped-sequence detection to reduce benign `\x` / `\u` false positives, and switched file-backed audit/federation persistence to compact atomic writes.
+
 
 ## [3.5.0] - 2026-05-07
 
