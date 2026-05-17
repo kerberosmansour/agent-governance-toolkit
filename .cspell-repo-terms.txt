@@ -154,6 +154,8 @@ FEFF
 flatbuffer
 hypercall
 kwarg
+kerberosmansour
+lockfiles
 millis
 microkernel
 Nanvix
