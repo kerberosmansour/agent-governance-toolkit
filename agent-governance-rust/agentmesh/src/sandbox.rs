@@ -15,6 +15,16 @@ use std::fmt;
 use std::process::Command;
 use std::time::Instant;
 
+/// Validate that an environment variable name contains only safe characters.
+fn validate_env_key(key: &str) -> Result<(), String> {
+    if key.is_empty()
+        || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(format!("Invalid environment variable name: {:?}", key));
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
@@ -213,8 +223,19 @@ fn generate_id() -> String {
 }
 
 /// Format a Docker-safe container name from agent and session IDs.
+/// Strips non-alphanumeric characters to prevent injection via agent_id.
 fn container_name(agent_id: &str, session_id: &str) -> String {
-    format!("{}-{}-{}", CONTAINER_PREFIX, agent_id, session_id)
+    let safe_agent: String = agent_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .take(64)
+        .collect();
+    let safe_session: String = session_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .take(64)
+        .collect();
+    format!("{}-{}-{}", CONTAINER_PREFIX, safe_agent, safe_session)
 }
 
 /// `SandboxProvider` backed by hardened Docker containers.
@@ -290,6 +311,7 @@ impl SandboxProvider for DockerSandboxProvider {
         }
 
         for (k, v) in &cfg.env_vars {
+            validate_env_key(k)?;
             args.push("-e".to_string());
             args.push(format!("{}={}", k, v));
         }
@@ -431,6 +453,14 @@ impl SandboxProvider for DockerSandboxProvider {
             args.push("--network=none".to_string());
         }
         for (k, v) in &cfg.env_vars {
+            if let Err(e) = validate_env_key(k) {
+                return SandboxResult {
+                    success: false,
+                    exit_code: -1,
+                    stderr: e,
+                    ..Default::default()
+                };
+            }
             args.push("-e".to_string());
             args.push(format!("{}={}", k, v));
         }
