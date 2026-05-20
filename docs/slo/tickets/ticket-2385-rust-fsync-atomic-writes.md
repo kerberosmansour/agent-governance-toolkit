@@ -183,7 +183,7 @@ Upstream issue workpad is deferred to avoid noisy Microsoft issue comments while
 - [x] Write SLO ticket contract
 - [x] Implement BDD-first
 - [x] Verify runtime/static/security gates
-- [ ] Open fork PR and hand off
+- [x] Open fork PR and hand off
 
 ### Acceptance Criteria
 - [x] Parent directory sync helper added where supported
@@ -226,17 +226,23 @@ Upstream issue workpad is deferred to avoid noisy Microsoft issue comments while
 
 ### Completed
 
-- Pending.
+- Added parent-directory sync after successful Rust atomic renames for file-backed audit and federation stores.
+- Kept the helper private, with Unix directory fsync and conservative non-Unix no-op behavior.
+- Added BDD tests proving the sync hook runs after rename and sync failures are surfaced without temp-file leaks.
 
 ### Tests And Validation
 
-- Pending.
+- Baseline focused governance tests: 24 passed.
+- New tests failed first with expected missing-helper compile errors.
+- Focused governance tests after implementation: 26 passed.
+- Formatter, release workspace build, clippy with warnings denied, full release workspace tests, changed-line spell check, and repo quality gates passed.
 
 ### Lessons / Follow-Ups
 
-- Pending.
+- Fork `main` is behind Microsoft `main`, so the fork PR targets an upstream-synced base branch to keep the diff reviewable.
+- No follow-up required for this ticket.
 
 ### PR / Issue Links
 
-- PR: Pending.
+- PR: https://github.com/kerberosmansour/agent-governance-toolkit/pull/10
 - Issue: https://github.com/microsoft/agent-governance-toolkit/issues/2385
