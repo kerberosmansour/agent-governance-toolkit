@@ -3,7 +3,7 @@
 """Tests for AgentMesh Identity module."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from agentmesh.identity import (
@@ -97,12 +97,35 @@ class TestAgentIdentity:
     def test_sign_and_verify(self):
         """Test signing and verification."""
         identity = AgentIdentity.create("signer", "s@e.com")
-        
+
         message = b"Hello, AgentMesh!"
         signature = identity.sign(message)
-        
+
         assert identity.verify_signature(message, signature)
         assert not identity.verify_signature(b"Modified message", signature)
+
+    def test_bad_signature_does_not_log_at_warning(self, caplog):
+        """Verifying a bad signature must NOT log at WARNING.
+
+        Attacker-controllable failures at WARNING enable log flooding;
+        all verification failures are routed to DEBUG instead.
+        """
+        import logging
+        identity = AgentIdentity.create("signer", "s@e.com")
+        message = b"Hello, AgentMesh!"
+        signature = identity.sign(message)
+
+        with caplog.at_level(logging.DEBUG, logger="agentmesh.identity.agent_id"):
+            assert not identity.verify_signature(b"Modified message", signature)
+
+        warning_records = [
+            r for r in caplog.records
+            if r.levelno >= logging.WARNING
+            and r.name == "agentmesh.identity.agent_id"
+        ]
+        assert warning_records == [], (
+            f"verify_signature must not log at WARNING; got: {warning_records}"
+        )
     
     def test_delegate_creates_child(self):
         """Test delegating to create sub-agent."""
@@ -154,7 +177,7 @@ class TestCredentials:
         cred = Credential.issue(agent_did="did:mesh:test")
         
         # Should expire in approximately 15 minutes
-        time_diff = cred.expires_at - datetime.utcnow()
+        time_diff = cred.expires_at - datetime.now(timezone.utc)
         assert 14 * 60 < time_diff.total_seconds() < 16 * 60
     
     def test_credential_expiry(self):

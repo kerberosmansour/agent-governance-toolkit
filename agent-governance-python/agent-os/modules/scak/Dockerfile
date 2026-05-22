@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir -e .
 FROM base as development
 
 # Install development dependencies (pinned for reproducibility)
-RUN pip install --no-cache-dir pytest==8.3.4 pytest-asyncio==0.24.0 jupyter==1.1.1 streamlit==1.54.0
+RUN pip install --no-cache-dir pytest==8.3.4 pytest-asyncio==0.24.0 jupyter==1.1.1 streamlit==1.40.0
 
 # Copy source code
 COPY . .

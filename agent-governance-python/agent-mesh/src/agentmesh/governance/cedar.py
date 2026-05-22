@@ -58,7 +58,10 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
+
+if TYPE_CHECKING:
+    from agentmesh.governance.backend import PolicyDecisionResult
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +169,20 @@ class CedarEvaluator:
             ):
                 result = self._evaluate_cli(action, context)
             else:
-                result = self._evaluate_builtin(action, context)
+                if self.mode == "builtin":
+                    result = self._evaluate_mock(action, context)
+                else:
+                    elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+                    return CedarDecision(
+                        allowed=False,
+                        action=action,
+                        evaluation_ms=elapsed,
+                        source="fallback",
+                        error=(
+                            "Cedar auto mode requires cedarpy or the cedar CLI; "
+                            "use mode='builtin' explicitly to opt into the mock evaluator"
+                        ),
+                    )
 
             elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             result.evaluation_ms = elapsed
@@ -277,14 +293,11 @@ class CedarEvaluator:
                     error="cedar authorize timed out",
                 )
 
-    def _evaluate_builtin(self, action: str, context: dict) -> CedarDecision:
-        """
-        Built-in Cedar pattern evaluator for common permit/forbid rules.
+    def _evaluate_mock(self, action: str, context: dict) -> CedarDecision:
+        """Mock Cedar pattern evaluator for testing/dev only.
 
-        Parses simple Cedar policy patterns:
-          - permit(principal, action == Action::"X", resource);
-          - forbid(principal, action == Action::"X", resource);
-          - permit(principal, action, resource);  // catch-all
+        Does NOT enforce principal or resource constraints.
+        Use mode='cedarpy' or mode='cli' for production.
         """
         if not self.policy_content:
             return CedarDecision(
@@ -299,6 +312,19 @@ class CedarEvaluator:
             action_normalized = action
 
         statements = _parse_cedar_statements(self.policy_content)
+
+        # Reject policies with principal/resource constraints the mock cannot enforce
+        for stmt in statements:
+            if stmt.get("has_principal_constraint") or stmt.get("has_resource_constraint"):
+                return CedarDecision(
+                    allowed=False,
+                    action=action,
+                    source="builtin",
+                    error=(
+                        "Mock Cedar evaluator does not implement principal/resource "
+                        "constraints; install cedarpy or the Cedar CLI for production use"
+                    ),
+                )
 
         has_permit = False
         for stmt in statements:
@@ -328,7 +354,11 @@ class CedarEvaluator:
 
 
 def _parse_cedar_statements(content: str) -> list[dict[str, Any]]:
-    """Parse Cedar permit/forbid statements from policy content."""
+    """Parse Cedar permit/forbid statements from policy content.
+
+    Returns dicts with: effect, action_constraint, has_principal_constraint,
+    has_resource_constraint, raw.
+    """
     statements: list[dict[str, Any]] = []
     pattern = re.compile(
         r'(permit|forbid)\s*\((.*?)\)\s*;',
@@ -342,13 +372,72 @@ def _parse_cedar_statements(content: str) -> list[dict[str, Any]]:
         action_constraint = (
             f'Action::"{action_match.group(1)}"' if action_match else None
         )
+
+        has_principal = bool(re.search(
+            r'principal\s*(?:==|in)\s*\w+', body
+        ))
+        has_resource = bool(re.search(
+            r'resource\s*(?:==|in)\s*\w+', body
+        ))
+
         statements.append({
             "effect": effect,
             "action_constraint": action_constraint,
+            "has_principal_constraint": has_principal,
+            "has_resource_constraint": has_resource,
             "raw": match.group(0),
         })
 
     return statements
+
+
+class CedarPolicyBackend:
+    """Adapter wrapping CedarEvaluator to satisfy ExternalPolicyBackend protocol.
+
+    Usage:
+        from agentmesh.governance.cedar import CedarPolicyBackend
+        from agentmesh.governance.backend import BackendRegistry
+
+        backend = CedarPolicyBackend(policy_content=MY_CEDAR_POLICY)
+        BackendRegistry.register(backend)
+    """
+
+    def __init__(
+        self,
+        evaluator: Optional["CedarEvaluator"] = None,
+        **kwargs: Any,
+    ):
+        """Initialize the Cedar policy backend.
+
+        Args:
+            evaluator: An existing CedarEvaluator instance. If not provided,
+                one is created from the remaining keyword arguments.
+            **kwargs: Passed to CedarEvaluator constructor if evaluator is None.
+        """
+        self._evaluator = evaluator or CedarEvaluator(**kwargs)
+
+    @property
+    def name(self) -> str:
+        return "cedar"
+
+    def evaluate(self, action: str, context: dict) -> "PolicyDecisionResult":
+        from agentmesh.governance.backend import PolicyDecisionResult
+
+        decision = self._evaluator.evaluate(action, context)
+        return PolicyDecisionResult(
+            allowed=decision.allowed,
+            reason=decision.error or ("allowed" if decision.allowed else "denied by policy"),
+            backend="cedar",
+            latency_ms=decision.evaluation_ms,
+            raw_response=decision.raw_result,
+        )
+
+    def healthy(self) -> bool:
+        return (
+            self._evaluator._cedarpy_available
+            or self._evaluator._cli_available
+            or self._evaluator.policy_content is not None
+        )
 
 
 def load_cedar_into_engine(

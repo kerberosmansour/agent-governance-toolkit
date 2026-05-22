@@ -33,7 +33,20 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
     private static readonly Regex AllowBlockRegex = new(@"allow\s*\{(?<body>.*?)\}", RegexOptions.Singleline | RegexOptions.CultureInvariant);
     private static readonly Regex EqualityRegex = new(@"^input\.(?<field>[A-Za-z0-9_]+)\s*(?<op>==|!=)\s*(?<value>true|false|""[^""]*"")$", RegexOptions.CultureInvariant);
     private static readonly Regex NotRegex = new(@"^not\s+input\.(?<field>[A-Za-z0-9_]+)$", RegexOptions.CultureInvariant);
-    private static readonly HttpClient HttpClient = new();
+
+    // Static HttpClient backed by a SocketsHttpHandler with a bounded
+    // PooledConnectionLifetime so long-running processes recycle the
+    // connection (and re-resolve DNS) every two minutes. Without this, a
+    // process-lifetime singleton HttpClient holds the original DNS answer
+    // forever and ignores rolling-deploy / scale-out / blue-green moves of
+    // the OPA endpoint. Per-request deadlines are enforced via CancellationToken
+    // (CancellationTokenSource.CancelAfter(_timeout)); HttpClient.Timeout is
+    // left at its default and not used as the primary deadline.
+    private static readonly HttpClient HttpClient = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1)
+    });
 
     private readonly string? _regoContent;
     private readonly string? _regoPath;
@@ -53,6 +66,7 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
         OpaEvaluationMode mode = OpaEvaluationMode.Auto,
         TimeSpan? timeout = null)
     {
+        ValidateOpaUrl(opaUrl);
         _regoContent = regoContent;
         _regoPath = regoPath;
         _query = query;
@@ -88,15 +102,15 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
                 EvaluationMs = sw.Elapsed.TotalMilliseconds
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             sw.Stop();
             return new ExternalPolicyDecision
             {
                 Backend = Name,
                 Allowed = false,
-                Reason = $"OPA evaluation failed: {ex.Message}",
-                Error = ex.Message,
+                Reason = "OPA evaluation failed — see server logs for details",
+                Error = "INTERNAL_ERROR",
                 EvaluationMs = sw.Elapsed.TotalMilliseconds
             };
         }
@@ -139,15 +153,15 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
                 EvaluationMs = sw.Elapsed.TotalMilliseconds
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             sw.Stop();
             return new ExternalPolicyDecision
             {
                 Backend = Name,
                 Allowed = false,
-                Reason = $"OPA evaluation failed: {ex.Message}",
-                Error = ex.Message,
+                Reason = "OPA evaluation failed — see server logs for details",
+                Error = "INTERNAL_ERROR",
                 EvaluationMs = sw.Elapsed.TotalMilliseconds
             };
         }
@@ -305,7 +319,7 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
     private ExternalPolicyDecision? TryEvaluateWithCli(IReadOnlyDictionary<string, object> context)
     {
         var opaExecutable = OperatingSystem.IsWindows() ? "opa.exe" : "opa";
-        if (!CommandExists(opaExecutable))
+        if (!ExternalBackendUtilities.CommandExists(opaExecutable))
         {
             return null;
         }
@@ -532,26 +546,6 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
         return startInfo;
     }
 
-    private static bool CommandExists(string executable)
-    {
-        var path = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var candidate = Path.Combine(directory, executable);
-            if (File.Exists(candidate))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private string? ResolveRegoContent()
     {
         if (!string.IsNullOrWhiteSpace(_regoContent))
@@ -562,5 +556,31 @@ public sealed class OpaPolicyBackend : IExternalPolicyBackend
         return !string.IsNullOrWhiteSpace(_regoPath) && File.Exists(_regoPath)
             ? File.ReadAllText(_regoPath, Encoding.UTF8)
             : null;
+    }
+
+    private static readonly HashSet<string> BlockedHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "169.254.169.254",        // AWS/Azure IMDS
+        "169.254.170.2",          // ECS task metadata
+        "168.63.129.16",          // Azure Wire Server
+        "metadata.google.internal",
+        "metadata.google",
+        "100.100.100.200",        // Alibaba Cloud IMDS
+    };
+
+    private static void ValidateOpaUrl(string opaUrl)
+    {
+        if (!Uri.TryCreate(opaUrl, UriKind.Absolute, out var uri))
+            throw new ArgumentException($"Invalid OPA URL: {opaUrl}", nameof(opaUrl));
+
+        if (uri.Scheme != "http" && uri.Scheme != "https")
+            throw new ArgumentException(
+                $"Unsupported OPA URL scheme '{uri.Scheme}': only http and https are allowed",
+                nameof(opaUrl));
+
+        if (BlockedHosts.Contains(uri.Host))
+            throw new ArgumentException(
+                $"OPA URL host '{uri.Host}' is blocked to prevent SSRF",
+                nameof(opaUrl));
     }
 }

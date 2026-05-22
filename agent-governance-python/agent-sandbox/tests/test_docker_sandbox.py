@@ -410,6 +410,7 @@ def docker_provider():
         provider._containers = {}
         provider._evaluators = {}
         provider._session_configs = {}
+        provider._exec_locks = {}
         provider._tool_proxy = None
         provider._network_proxy = None
         provider._state_manager = None
@@ -740,8 +741,9 @@ class TestDockerRun:
         c.exec_run.return_value = MagicMock(
             exit_code=0, output=(b"x" * 20000, b""),
         )
+        cfg = SandboxConfig(output_max_bytes=10000)
         r = docker_provider.run(
-            "a1", ["echo"], session_id=h.session_id,
+            "a1", ["echo"], session_id=h.session_id, config=cfg,
         )
         assert len(r.stdout) == 10000
 
@@ -1338,7 +1340,7 @@ class TestGetExecutionStatus:
 
 
 class TestOutputTruncation:
-    """Both stdout and stderr are truncated to 10000 chars."""
+    """Both stdout and stderr are capped to output_max_bytes."""
 
     def test_stderr_truncated(self, docker_provider):
         h = docker_provider.create_session("a1")
@@ -1346,8 +1348,9 @@ class TestOutputTruncation:
         c.exec_run.return_value = MagicMock(
             exit_code=1, output=(b"", b"e" * 20000),
         )
+        cfg = SandboxConfig(output_max_bytes=10000)
         r = docker_provider.run(
-            "a1", ["bad"], session_id=h.session_id,
+            "a1", ["bad"], session_id=h.session_id, config=cfg,
         )
         assert len(r.stderr) == 10000
 
@@ -1357,11 +1360,86 @@ class TestOutputTruncation:
         c.exec_run.return_value = MagicMock(
             exit_code=0, output=(b"o" * 20000, b"e" * 20000),
         )
+        cfg = SandboxConfig(output_max_bytes=10000)
         r = docker_provider.run(
-            "a1", ["cmd"], session_id=h.session_id,
+            "a1", ["cmd"], session_id=h.session_id, config=cfg,
         )
         assert len(r.stdout) == 10000
         assert len(r.stderr) == 10000
+
+    def test_default_cap_allows_normal_output(self, docker_provider):
+        """Default output_max_bytes (1 MiB) doesn't truncate normal output."""
+        h = docker_provider.create_session("a1")
+        c = docker_provider._containers[(h.agent_id, h.session_id)]
+        c.exec_run.return_value = MagicMock(
+            exit_code=0, output=(b"x" * 500, b"y" * 300),
+        )
+        r = docker_provider.run(
+            "a1", ["echo"], session_id=h.session_id,
+        )
+        assert len(r.stdout) == 500
+        assert len(r.stderr) == 300
+
+
+class TestStreamCappedConsumer:
+    """Unit tests for _consume_stream_capped and _cap_output_bytes."""
+
+    def test_stream_under_cap(self):
+        from agent_sandbox.docker_provider.provider import _consume_stream_capped
+        stream = iter([(b"hello", b"world"), (b" more", None)])
+        stdout, stderr, truncated = _consume_stream_capped(stream, 1024)
+        assert stdout == b"hello more"
+        assert stderr == b"world"
+        assert not truncated
+
+    def test_stream_over_cap(self):
+        from agent_sandbox.docker_provider.provider import (
+            _consume_stream_capped,
+            _OUTPUT_TRUNCATED_MARKER,
+        )
+        stream = iter([(b"a" * 100, b"b" * 100), (b"a" * 100, b"b" * 100)])
+        stdout, stderr, truncated = _consume_stream_capped(stream, 50)
+        marker = _OUTPUT_TRUNCATED_MARKER.encode()
+        assert stdout == b"a" * 50 + marker
+        assert stderr == b"b" * 50 + marker
+        assert truncated
+
+    def test_stream_empty(self):
+        from agent_sandbox.docker_provider.provider import _consume_stream_capped
+        stream = iter([])
+        stdout, stderr, truncated = _consume_stream_capped(stream, 1024)
+        assert stdout is None
+        assert stderr is None
+        assert not truncated
+
+    def test_cap_output_bytes_under_limit(self):
+        from agent_sandbox.docker_provider.provider import _cap_output_bytes
+        stdout, stderr, truncated = _cap_output_bytes(
+            (b"hello", b"world"), 1024,
+        )
+        assert stdout == b"hello"
+        assert stderr == b"world"
+        assert not truncated
+
+    def test_cap_output_bytes_over_limit(self):
+        from agent_sandbox.docker_provider.provider import (
+            _cap_output_bytes,
+            _OUTPUT_TRUNCATED_MARKER,
+        )
+        stdout, stderr, truncated = _cap_output_bytes(
+            (b"x" * 2000, b"y" * 2000), 1000,
+        )
+        marker = _OUTPUT_TRUNCATED_MARKER.encode()
+        assert stdout == b"x" * 1000 + marker
+        assert stderr == b"y" * 1000 + marker
+        assert truncated
+
+    def test_cap_output_bytes_none_input(self):
+        from agent_sandbox.docker_provider.provider import _cap_output_bytes
+        stdout, stderr, truncated = _cap_output_bytes(None, 1024)
+        assert stdout is None
+        assert stderr is None
+        assert not truncated
 
 
 # =========================================================================
@@ -1693,21 +1771,32 @@ class TestSymlinkResolution:
 class TestTimeoutWatchdog:
     """Verify timeout_seconds is enforced via a watchdog thread."""
 
-    def test_timeout_kills_container(self, docker_provider):
-        """When exec exceeds timeout, container is killed."""
-        import threading
+    def test_timeout_kills_exec_process_not_container(self, docker_provider):
+        """When an exec exceeds its timeout, only the offending exec
+        process is killed — NOT the entire container. This preserves
+        guest state from prior execute_code calls in the same session.
+        """
         import time as _time
 
         h = docker_provider.create_session("a1")
         c = docker_provider._containers[(h.agent_id, h.session_id)]
 
-        # Simulate exec_run blocking for 2s, with 0.1s timeout
+        # Drive the timeout path through the low-level API. Simulate
+        # exec_start blocking longer than the configured timeout.
+        api = docker_provider._client.api
+        api.exec_create.return_value = {"Id": "exec-abc"}
 
-        def slow_exec(*args, **kwargs):
+        def slow_exec_start(exec_id, stream=False, demux=True):
+            if stream:
+                def _gen():
+                    _time.sleep(0.5)
+                    yield (None, b"killed")
+                return _gen()
             _time.sleep(0.5)
-            return MagicMock(exit_code=137, output=(None, b"killed"))
+            return (None, b"killed")
 
-        c.exec_run = slow_exec
+        api.exec_start.side_effect = slow_exec_start
+        api.exec_inspect.return_value = {"Pid": 4242, "ExitCode": 137}
 
         cfg = SandboxConfig(timeout_seconds=0.1)
         r = docker_provider.run(
@@ -1715,8 +1804,64 @@ class TestTimeoutWatchdog:
             config=cfg,
             session_id=h.session_id,
         )
-        # The container should have been killed by the watchdog
-        assert c.kill.called or r.killed or not r.success
+
+        assert r.killed is True
+        # Container.kill must NOT have been called — that would have
+        # destroyed every previous execute_code call's state.
+        assert not c.kill.called
+        # Instead, the specific PID was sent SIGKILL via exec_run.
+        kill_calls = [
+            call for call in c.exec_run.call_args_list
+            if call.args and call.args[0] == ["kill", "-9", "4242"]
+        ]
+        assert kill_calls, (
+            f"Expected ``container.exec_run(['kill', '-9', '4242'])`` "
+            f"call; got exec_run calls: {c.exec_run.call_args_list}"
+        )
+
+    def test_concurrent_runs_serialise_per_container(self, docker_provider):
+        """Concurrent run() calls against the same session must
+        serialise so a timeout in one cannot disrupt another in
+        flight.
+        """
+        import threading
+        import time as _time
+
+        h = docker_provider.create_session("a1")
+        c = docker_provider._containers[(h.agent_id, h.session_id)]
+
+        in_progress = 0
+        max_in_progress = 0
+        lock = threading.Lock()
+
+        def tracked_exec(*args, **kwargs):
+            nonlocal in_progress, max_in_progress
+            with lock:
+                in_progress += 1
+                max_in_progress = max(max_in_progress, in_progress)
+            _time.sleep(0.05)
+            with lock:
+                in_progress -= 1
+            return MagicMock(exit_code=0, output=(b"ok", b""))
+
+        c.exec_run.side_effect = tracked_exec
+
+        threads = [
+            threading.Thread(
+                target=docker_provider.run,
+                args=("a1", ["echo"]),
+                kwargs={"session_id": h.session_id, "config": SandboxConfig()},
+            )
+            for _ in range(4)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # The exec lock is per-(agent, session); only one exec at a
+        # time should ever be in flight against this container.
+        assert max_in_progress == 1
 
 
 # ============================================================================

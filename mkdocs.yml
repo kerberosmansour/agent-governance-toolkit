@@ -30,7 +30,6 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.top
     - navigation.path
     - search.suggest
@@ -98,49 +97,82 @@ nav:
     - Agent Marketplace: packages/agent-marketplace.md
     - Agent Lightning: packages/agent-lightning.md
     - Agent Hypervisor: packages/agent-hypervisor.md
+    - Copilot CLI governance package: packages/copilot-cli-governance.md
     - .NET package: packages/dotnet-sdk.md
     - VS Code Extension: packages/agent-os-vscode.md
   - Tutorials:
     - Overview: tutorials/index.md
-    - Policy Engine: tutorials/01-policy-engine.md
-    - Trust & Identity: tutorials/02-trust-and-identity.md
-    - Framework Integrations: tutorials/03-framework-integrations.md
-    - Audit & Compliance: tutorials/04-audit-and-compliance.md
-    - Agent Reliability: tutorials/05-agent-reliability.md
-    - Execution Sandboxing: tutorials/06-execution-sandboxing.md
-    - MCP Security Gateway: tutorials/07-mcp-security-gateway.md
-    - OPA / Rego / Cedar Policies: tutorials/08-opa-rego-cedar-policies.md
-    - Prompt Injection Detection: tutorials/09-prompt-injection-detection.md
-    - Plugin Marketplace: tutorials/10-plugin-marketplace.md
-    - Saga Orchestration: tutorials/11-saga-orchestration.md
-    - Liability & Attribution: tutorials/12-liability-and-attribution.md
-    - Observability & Tracing: tutorials/13-observability-and-tracing.md
-    - Kill Switch & Rate Limiting: tutorials/14-kill-switch-and-rate-limiting.md
-    - RL Training Governance: tutorials/15-rl-training-governance.md
-    - Protocol Bridges: tutorials/16-protocol-bridges.md
-    - Advanced Trust: tutorials/17-advanced-trust-and-behavior.md
-    - Compliance Verification: tutorials/18-compliance-verification.md
-    - .NET package: tutorials/19-dotnet-sdk.md
-    - C# MCP extension: tutorials/42-csharp-mcp-extension.md
-    - TypeScript package: tutorials/20-typescript-sdk.md
-    - Rust crate: tutorials/21-rust-sdk.md
-    - Go module: tutorials/22-go-sdk.md
-    - Delegation Chains: tutorials/23-delegation-chains.md
-    - Cost & Token Budgets: tutorials/24-cost-and-token-budgets.md
-    - Security Hardening: tutorials/25-security-hardening.md
-    - SBOM & Signing: tutorials/26-sbom-and-signing.md
-    - MCP Scan CLI: tutorials/27-mcp-scan-cli.md
-    - Build Custom Integration: tutorials/28-build-custom-integration.md
-    - Agent Discovery: tutorials/29-agent-discovery.md
-    - Agent Lifecycle: tutorials/30-agent-lifecycle.md
-    - Entra Agent ID Bridge: tutorials/31-entra-agent-id-bridge.md
-    - Chaos Testing Agents: tutorials/32-chaos-testing-agents.md
-    - E2E Encrypted Messaging: tutorials/32-e2e-encrypted-messaging.md
-    - Offline Verifiable Receipts: tutorials/33-offline-verifiable-receipts.md
-    - MAF Integration: tutorials/34-maf-integration.md
-    - .NET MAF Hook Integration: tutorials/43-dotnet-maf-hook-integration.md
-    - A2A Conversation Policy: tutorials/44-a2a-conversation-policy.md
-    - Shift-Left Governance: tutorials/45-shift-left-governance.md
+    - Getting Started:
+      - 2-Line Quickstart: tutorials/36-govern-quickstart.md
+      - Policy Engine Basics: tutorials/01-policy-engine.md
+      - Framework Integrations: tutorials/03-framework-integrations.md
+      - Progressive Governance: tutorials/progressive-governance.md
+    - End-to-End Scenarios:
+      - Govern an AI Agent (Python): tutorials/04-audit-and-compliance.md
+      - Govern MCP Tool Servers: tutorials/07-mcp-security-gateway.md
+      - .NET MAF Integration: tutorials/34-maf-integration.md
+      - .NET MAF Hook: tutorials/43-dotnet-maf-hook-integration.md
+      - Multi-Agent Fleet Policies: tutorials/49-multi-agent-policies.md
+      - Multi-Stage Pipeline: tutorials/37-multi-stage-pipeline.md
+      - Retrofit Existing Agents: tutorials/retrofit-governance.md
+      - Shift-Left CI/CD Gates: tutorials/45-shift-left-governance.md
+      - A2A Conversation Policy: tutorials/44-a2a-conversation-policy.md
+      - Copilot CLI Governance: tutorials/46-copilot-cli-governance.md
+    - Security:
+      - Execution Sandboxing: tutorials/06-execution-sandboxing.md
+      - Prompt Injection Detection: tutorials/09-prompt-injection-detection.md
+      - Security Hardening: tutorials/25-security-hardening.md
+      - DLP & Attribute Ratchets: tutorials/39-dlp-attribute-ratchets.md
+      - Defense-in-Depth: tutorials/41-advisory-defense-in-depth.md
+      - SBOM & Signing: tutorials/26-sbom-and-signing.md
+      - MCP Scan CLI: tutorials/27-mcp-scan-cli.md
+      - E2E Encrypted Messaging: tutorials/32-e2e-encrypted-messaging.md
+      - Red-Team Testing: tutorials/47-red-team-testing.md
+    - Policy & Authorization:
+      - OPA / Rego / Cedar: tutorials/08-opa-rego-cedar-policies.md
+      - Policy Composition: tutorials/35-policy-composition.md
+      - Approval Workflows: tutorials/38-approval-workflows.md
+      - Intent-Based Authorization: tutorials/48-intent-based-authorization.md
+      - Delegation Chains: tutorials/23-delegation-chains.md
+      - Cost & Token Budgets: tutorials/24-cost-and-token-budgets.md
+      - Cost Governance: tutorials/51-cost-governance.md
+      - Policy-as-Code Series:
+        - Your First Policy: tutorials/policy-as-code/01-your-first-policy.md
+        - Capability Scoping: tutorials/policy-as-code/02-capability-scoping.md
+        - Rate Limiting: tutorials/policy-as-code/03-rate-limiting.md
+        - Conditional Policies: tutorials/policy-as-code/04-conditional-policies.md
+        - Approval Workflows: tutorials/policy-as-code/05-approval-workflows.md
+        - Policy Testing: tutorials/policy-as-code/06-policy-testing.md
+        - Policy Versioning: tutorials/policy-as-code/07-policy-versioning.md
+        - MCP Governance: tutorials/policy-as-code/mcp-governance.md
+    - Observability & Operations:
+      - Observability & Tracing: tutorials/13-observability-and-tracing.md
+      - OpenTelemetry Integration: tutorials/40-otel-observability.md
+      - Kill Switch & Rate Limiting: tutorials/14-kill-switch-and-rate-limiting.md
+      - Agent Discovery: tutorials/29-agent-discovery.md
+      - Agent Lifecycle: tutorials/30-agent-lifecycle.md
+      - Chaos Testing: tutorials/52-chaos-testing-agents.md
+      - Agent Reliability: tutorials/05-agent-reliability.md
+    - Advanced Topics:
+      - Trust & Identity Deep Dive: tutorials/02-trust-and-identity.md
+      - Advanced Trust & Behavior: tutorials/17-advanced-trust-and-behavior.md
+      - Compliance Verification: tutorials/18-compliance-verification.md
+      - Saga Orchestration: tutorials/11-saga-orchestration.md
+      - Liability & Attribution: tutorials/12-liability-and-attribution.md
+      - Protocol Bridges: tutorials/16-protocol-bridges.md
+      - Plugin Marketplace: tutorials/10-plugin-marketplace.md
+      - RL Training Governance: tutorials/15-rl-training-governance.md
+      - Decision BOM: tutorials/50-decision-bom.md
+      - Offline Verifiable Receipts: tutorials/33-offline-verifiable-receipts.md
+      - Entra Agent ID Bridge: tutorials/31-entra-agent-id-bridge.md
+      - Contributor Governance: tutorials/53-contributor-governance.md
+    - Language & Platform Guides:
+      - .NET SDK: tutorials/19-dotnet-sdk.md
+      - C# MCP Extension: tutorials/42-csharp-mcp-extension.md
+      - TypeScript SDK: tutorials/20-typescript-sdk.md
+      - Rust Crate: tutorials/21-rust-sdk.md
+      - Go Module: tutorials/22-go-sdk.md
+      - Build Custom Integration: tutorials/28-build-custom-integration.md
   - Deployment:
     - Overview: deployment/index.md
     - Azure Container Apps: deployment/azure-container-apps.md
@@ -154,6 +186,17 @@ nav:
     - OWASP Compliance: security/owasp-compliance.md
     - Security Scanning: security/scanning.md
     - Tenant Isolation: security/tenant-isolation.md
+  - Specifications:
+    - "Agent OS Policy Engine": specs/AGENT-OS-POLICY-ENGINE-1.0.md
+    - "AgentMesh Identity & Trust": specs/AGENTMESH-IDENTITY-TRUST-1.0.md
+    - "Agent Hypervisor Execution Control": specs/AGENT-HYPERVISOR-EXECUTION-CONTROL-1.0.md
+    - "AgentMesh Trust & Coordination": specs/AGENTMESH-TRUST-COORDINATION-1.0.md
+    - "AgentMesh Wire Protocol": specs/AGENTMESH-WIRE-1.0.md
+    - "Agent SRE Governance": specs/AGENT-SRE-GOVERNANCE-1.0.md
+    - "MCP Security Gateway": specs/MCP-SECURITY-GATEWAY-1.0.md
+    - "Agent Lightning Fast-Path": specs/AGENT-LIGHTNING-FAST-PATH-1.0.md
+    - "Framework Adapter Contract": specs/FRAMEWORK-ADAPTER-CONTRACT-1.0.md
+    - "Audit & Compliance": specs/AUDIT-COMPLIANCE-1.0.md
   - Architecture Decisions:
     - Overview: adr/index.md
     - "ADR-0001: Ed25519 for Identity": adr/0001-use-ed25519-for-agent-identity.md
@@ -168,6 +211,19 @@ nav:
     - "ADR-0010: TEE Keystore SEV-SNP": adr/0010-tee-keystore-sevsnp-attestation.md
     - "ADR-0011: Additive Policy Contract": adr/0011-additive-policy-check-contract.md
     - "ADR-0012: Cost Governance": adr/0012-cost-governance-observability-policies.md
+    - "ADR-0013: Fail Closed on Errors": adr/0013-fail-closed-on-policy-evaluation-errors.md
+    - "ADR-0014: Parent Deny Immutable": adr/0014-parent-deny-rules-immutable-in-merge.md
+    - "ADR-0015: Pluggable Policy Backends": adr/0015-pluggable-external-policy-backends.md
+    - "ADR-0016: Trust Ceiling Propagation": adr/0016-trust-ceiling-propagation-for-delegation.md
+    - "ADR-0017: Merkle Audit Chain": adr/0017-merkle-chain-for-audit-tamper-evidence.md
+    - "ADR-0018: Reconstructible Decision BOM": adr/0018-reconstructible-decision-bom-over-prebuilt.md
+    - "ADR-0019: OTel Event Sink Pattern": adr/0019-otel-batchspanprocessor-pattern-for-event-sink.md
+    - "ADR-0020: Circuit Breaker for Sinks": adr/0020-circuit-breaker-for-event-sink-delivery.md
+    - "ADR-0021: CloudEvents Envelope": adr/0021-cloudevents-envelope-for-mesh-audit.md
+    - "ADR-0022: Compliance Auto-Mapping": adr/0022-compliance-framework-auto-mapping.md
+    - "ADR-0023: Hypervisor Delta Engine": adr/0023-append-only-delta-engine-for-hypervisor-audit.md
+    - "ADR-0024: RL Training Governance": adr/0024-rl-training-governance-with-violation-penalties.md
+    - "ADR-0025: Structural Typing Protocols": adr/0025-structural-typing-for-sink-and-source-protocols.md
   - Reference:
     - Benchmarks: reference/benchmarks.md
     - Comparison: reference/comparison.md

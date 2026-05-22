@@ -6,7 +6,6 @@ Governance & Compliance Plane (Layer 3)
 Declarative policy engine with automated compliance mapping.
 Append-only audit logs with optional external sinks.
 """
-
 from .govern import govern, GovernedCallable, GovernanceConfig, GovernanceDenied
 from .approval import (
     ApprovalHandler,
@@ -48,10 +47,12 @@ from .audit_backends import (
     SignedAuditEntry,
     FileAuditSink,
     HashChainVerifier,
+    StdoutAuditSink,
 )
 from .shadow import ShadowMode, ShadowResult
-from .opa import OPAEvaluator, OPADecision, load_rego_into_engine
-from .cedar import CedarEvaluator, CedarDecision, load_cedar_into_engine
+from .backend import ExternalPolicyBackend, PolicyDecisionResult, BackendRegistry
+from .opa import OPAEvaluator, OPADecision, OPAPolicyBackend, load_rego_into_engine
+from .cedar import CedarEvaluator, CedarDecision, CedarPolicyBackend, load_cedar_into_engine
 from .authority import (
     AuthorityDecision,
     AuthorityRequest,
@@ -151,14 +152,21 @@ __all__ = [
     "SignedAuditEntry",
     "FileAuditSink",
     "HashChainVerifier",
+    "StdoutAuditSink",
     "ShadowMode",
     "ShadowResult",
     "OPAEvaluator",
     "OPADecision",
+    "OPAPolicyBackend",
     "load_rego_into_engine",
     "CedarEvaluator",
     "CedarDecision",
+    "CedarPolicyBackend",
     "load_cedar_into_engine",
+    # External policy backend protocol (issue #2280)
+    "ExternalPolicyBackend",
+    "PolicyDecisionResult",
+    "BackendRegistry",
     "AuthorityDecision",
     "AuthorityRequest",
     "AuthorityResolver",

@@ -78,23 +78,110 @@ hide:
 
 <div class="agt-hero" markdown>
 
-# Agent Governance Toolkit
+# Ship agents to production without losing sleep
 
-Runtime governance for AI agents: deterministic policy enforcement, zero-trust identity, execution sandboxing, and SRE for autonomous agents.
+Policy enforcement, identity, sandboxing, and SRE for autonomous AI agents. One `pip install`, any framework.
+
+```
+pip install agent-governance-toolkit
+```
 
 <div class="agt-hero-badges">
   <a href="quickstart/">🚀 Quick Start</a>
   <a href="https://pypi.org/project/agent-governance-toolkit/">📦 PyPI</a>
   <a href="https://github.com/microsoft/agent-governance-toolkit">💻 GitHub</a>
   <a href="tutorials/index/">📚 Tutorials</a>
+  <a href="reference/comparison/">⚖️ How AGT Compares</a>
 </div>
 
 <div class="agt-stats">
   <div class="agt-stat"><span class="agt-stat-value">13,000+</span><span class="agt-stat-label">Tests</span></div>
-  <div class="agt-stat"><span class="agt-stat-value">8</span><span class="agt-stat-label">Core packages</span></div>
+  <div class="agt-stat"><span class="agt-stat-value">10</span><span class="agt-stat-label">Formal Specs</span></div>
   <div class="agt-stat"><span class="agt-stat-value">5</span><span class="agt-stat-label">Languages</span></div>
-  <div class="agt-stat"><span class="agt-stat-value">19</span><span class="agt-stat-label">Integrations</span></div>
+  <div class="agt-stat"><span class="agt-stat-value">20+</span><span class="agt-stat-label">Integrations</span></div>
 </div>
+
+</div>
+
+<div class="agt-section" markdown>
+
+## The problem
+
+Your AI agents call tools, browse the web, query databases, and delegate to other agents. Once deployed, they make decisions autonomously. You need answers to three questions:
+
+**1. Is this action allowed?** An agent with access to `send_email` and `query_database` should not be able to `drop_table`. OAuth scopes and IAM roles control which services an agent can reach, not what it does once connected.
+
+**2. Which agent did this?** In a multi-agent system, five agents might share a single API key. When something goes wrong, "an agent did it" is not an incident response.
+
+**3. Can you prove what happened?** Auditors and regulators need tamper-evident records of every decision: what policy was active, what the agent requested, and why it was allowed or denied.
+
+</div>
+
+<div class="agt-section" markdown>
+
+## Govern any agent in 2 lines
+
+Wrap any tool function with `govern()`. Policy enforcement, audit logging, and denial handling are automatic.
+
+```python
+from agentmesh.governance import govern
+
+safe_tool = govern(my_tool, policy="policy.yaml")
+```
+
+That's it. `safe_tool` evaluates your YAML policy on every call, logs the decision, and raises `GovernanceDenied` if the action is blocked. Works with LangChain, CrewAI, OpenAI Agents, AutoGen, Google ADK, and any other framework.
+
+```yaml
+# policy.yaml
+apiVersion: governance.toolkit/v1
+name: production-policy
+default_action: allow
+rules:
+  - name: block-destructive
+    condition: "action.type in ['drop', 'delete', 'truncate']"
+    action: deny
+    description: "Destructive operations require human approval"
+
+  - name: require-approval-for-send
+    condition: "action.type == 'send_email'"
+    action: require_approval
+    approvers: ["security-team"]
+```
+
+```
+>>> safe_tool(action="read", table="users")
+{'table': 'users', 'rows': 42}
+
+>>> safe_tool(action="drop", table="users")
+GovernanceDenied: Action denied by policy rule 'block-destructive':
+  Destructive operations require human approval
+```
+
+</div>
+
+<div class="agt-section" markdown>
+
+## How it works
+
+```
+                       ┌─────────────────────────────────────────────┐
+                       │            Agent Governance Toolkit          │
+                       │                                             │
+Agent ──→ govern() ──→ │  Policy Engine ──→ Identity ──→ Audit Log   │ ──→ Tool
+                       │       │                │            │       │
+                       │   YAML/OPA/Cedar   SPIFFE SVID   Tamper-   │
+                       │                                  evident    │
+                       └─────────────────────────────────────────────┘
+
+  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+  │ Agent OS  │    │   Mesh   │    │   SRE    │    │ Sandbox  │
+  │ policies  │    │ identity │    │  SLOs    │    │  rings   │
+  │ lifecycle │    │  routing │    │  chaos   │    │ isolation│
+  │ approval  │    │   trust  │    │  costs   │    │ kill sw  │
+  └──────────┘    └──────────┘    └──────────┘    └──────────┘
+```
+
+Every layer is optional. Start with `govern()` and add layers as your risk profile grows. Most teams run policy enforcement + audit logging and never need the full stack.
 
 </div>
 
@@ -103,37 +190,37 @@ Runtime governance for AI agents: deterministic policy enforcement, zero-trust i
 ## Packages
 
 <div class="agt-cards">
-<a class="agt-card" href="packages/agent-os/">
+<a class="agt-card" href="packages/agent-os.md">
 <span class="agt-card-title">⚙️ Agent OS</span>
 <span class="agt-card-desc">Policy engine, agent lifecycle, governance gate</span>
 </a>
-<a class="agt-card" href="packages/agent-mesh/">
+<a class="agt-card" href="packages/agent-mesh.md">
 <span class="agt-card-title">🔗 Agent Mesh</span>
 <span class="agt-card-desc">Agent discovery, routing, and trust mesh</span>
 </a>
-<a class="agt-card" href="packages/agent-runtime/">
+<a class="agt-card" href="packages/agent-runtime.md">
 <span class="agt-card-title">🛡️ Agent Runtime</span>
 <span class="agt-card-desc">Execution sandboxing with four privilege rings</span>
 </a>
-<a class="agt-card" href="packages/agent-sre/">
+<a class="agt-card" href="packages/agent-sre.md">
 <span class="agt-card-title">📊 Agent SRE</span>
 <span class="agt-card-desc">Kill switch, SLO monitoring, chaos testing</span>
 </a>
-<a class="agt-card" href="packages/agent-compliance/">
+<a class="agt-card" href="packages/agent-compliance.md">
 <span class="agt-card-title">✅ Agent Compliance</span>
-<span class="agt-card-desc">Audit logging, compliance frameworks</span>
+<span class="agt-card-desc">OWASP verification, policy linting, integrity checks</span>
 </a>
-<a class="agt-card" href="packages/agent-marketplace/">
+<a class="agt-card" href="packages/agent-marketplace.md">
 <span class="agt-card-title">🏪 Agent Marketplace</span>
 <span class="agt-card-desc">Plugin governance and trust scoring</span>
 </a>
-<a class="agt-card" href="packages/agent-lightning/">
+<a class="agt-card" href="packages/agent-lightning.md">
 <span class="agt-card-title">⚡ Agent Lightning</span>
-<span class="agt-card-desc">High-performance agent orchestration</span>
+<span class="agt-card-desc">RL training governance with violation penalties</span>
 </a>
-<a class="agt-card" href="packages/agent-hypervisor/">
+<a class="agt-card" href="packages/agent-hypervisor.md">
 <span class="agt-card-title">🔒 Agent Hypervisor</span>
-<span class="agt-card-desc">Hardware-level workload isolation</span>
+<span class="agt-card-desc">Execution audit, delta engine, commitment anchoring</span>
 </a>
 </div>
 </div>
@@ -144,11 +231,11 @@ Runtime governance for AI agents: deterministic policy enforcement, zero-trust i
 
 | SDK | Install |
 |-----|---------|
-| 🐍 [Python](packages/agent-os/) | `pip install agent-governance-toolkit` |
-| 📘 [TypeScript](packages/typescript-sdk/) | `npm install @agent-governance/sdk` |
-| 🔷 [.NET](packages/dotnet-sdk/) | `dotnet add package Microsoft.AgentGovernance` |
-| 🦀 [Rust](packages/rust-sdk/) | `cargo add agentmesh` |
-| 🐹 [Go](packages/go-sdk/) | `go get github.com/microsoft/agent-governance-toolkit` |
+| 🐍 [Python](packages/agent-compliance.md) | `pip install agent-governance-toolkit` |
+| 📘 TypeScript | `npm install @microsoft/agent-governance-sdk` |
+| 🔷 [.NET](packages/dotnet-sdk.md) | `dotnet add package Microsoft.AgentGovernance` |
+| 🦀 Rust | `cargo add agent-governance` |
+| 🐹 Go | `go get github.com/microsoft/agent-governance-toolkit/agent-governance-golang` |
 
 </div>
 
@@ -176,13 +263,36 @@ Works with any agent framework: LangChain, CrewAI, AutoGen, Google ADK, OpenAI A
 
 <div class="agt-section" markdown>
 
+## Specifications
+
+Every major component has a formal RFC 2119 specification with conformance tests.
+
+| Specification | Tests |
+|---|---|
+| [Agent OS Policy Engine](specs/AGENT-OS-POLICY-ENGINE-1.0.md) | 68 |
+| [AgentMesh Identity and Trust](specs/AGENTMESH-IDENTITY-TRUST-1.0.md) | 135 |
+| [Agent Hypervisor Execution Control](specs/AGENT-HYPERVISOR-EXECUTION-CONTROL-1.0.md) | 80 |
+| [AgentMesh Trust and Coordination](specs/AGENTMESH-TRUST-COORDINATION-1.0.md) | 62 |
+| [Agent SRE Governance](specs/AGENT-SRE-GOVERNANCE-1.0.md) | 111 |
+| [MCP Security Gateway](specs/MCP-SECURITY-GATEWAY-1.0.md) | 127 |
+| [Agent Lightning Fast-Path](specs/AGENT-LIGHTNING-FAST-PATH-1.0.md) | 100 |
+| [Framework Adapter Contract](specs/FRAMEWORK-ADAPTER-CONTRACT-1.0.md) | 152 |
+| [Audit and Compliance](specs/AUDIT-COMPLIANCE-1.0.md) | 157 |
+| [AgentMesh Wire Protocol](specs/AGENTMESH-WIRE-1.0.md) | -- |
+
+[25 Architecture Decision Records](adr/) document the reasoning behind key design choices.
+
+</div>
+
+<div class="agt-section" markdown>
+
 ## Standards Compliance
 
 | Standard | Coverage |
 |----------|----------|
 | [OWASP Agentic AI Top 10](security/owasp-compliance.md) | All 10 risks covered with deterministic controls |
 | [NIST AI RMF 1.0](reference/nist-rfi-mapping.md) | Full GOVERN, MAP, MEASURE, MANAGE alignment |
-| [Ed25519 (RFC 8032)](adr/0001-use-ed25519-for-agent-identity.md) | Agent identity signatures |
-| [RFC 9334 (RATS)](adr/0009-rfc-9334-rats-architecture-alignment.md) | Remote attestation alignment |
+| [EU AI Act](compliance/) | Compliance mapping with automated evidence |
+| [SOC 2](compliance/soc2-mapping.md) | Control mapping with audit trail export |
 
 </div>

@@ -40,10 +40,12 @@ graph TB
 
 | Package | Language | Install |
 |---------|---------|---------|
-| [TypeScript SDK](typescript-sdk.md) | TypeScript | `npm install @agent-governance/sdk` |
+| TypeScript SDK | TypeScript | `npm install @microsoft/agent-governance-sdk` |
+| [Copilot CLI governance package](copilot-cli-governance.md) | Copilot CLI / Node.js | `npx @microsoft/agent-governance-copilot-cli install` |
+| [Claude Code governance package](claude-code-governance.md) | Claude Code / Node.js | `claude --plugin-dir ./agent-governance-claude-code` |
 | [.NET package](dotnet-sdk.md) | C# / .NET | `dotnet add package Microsoft.AgentGovernance` |
-| [Rust crate](rust-sdk.md) | Rust | `cargo add agentmesh` |
-| [Go module](go-sdk.md) | Go | `go get github.com/microsoft/agent-governance-toolkit` |
+| Rust crate | Rust | `cargo add agentmesh` |
+| Go module | Go | `go get github.com/microsoft/agent-governance-toolkit` |
 | [VS Code Extension](agent-os-vscode.md) | VS Code | Install from marketplace |
 
 ## Framework Integrations (19)
@@ -60,11 +62,11 @@ graph TB
 | flowise-agentmesh | Flowise | `pip install flowise-agentmesh` |
 | langflow-agentmesh | LangFlow | `pip install langflow-agentmesh` |
 | mastra-agentmesh | Mastra | `npm install @agentmesh/mastra` |
-| copilot-governance | GitHub Copilot | `npm install @agentmesh/copilot-governance` |
+| copilot-governance | GitHub Copilot | `npm install @microsoft/agentmesh-copilot-governance` |
 | pydantic-ai-governance | Pydantic AI | `pip install pydantic-ai-governance` |
 | a2a-protocol | A2A Protocol | `pip install a2a-protocol` |
 | mcp-trust-proxy | MCP | `pip install mcp-trust-proxy` |
-| openshell-skill | NVIDIA OpenShell | `pip install openshell-skill` |
+| openshell-skill | NVIDIA OpenShell | `pip install openshell-agentmesh` |
 | agentmesh-avp | Amazon Verified Permissions | `pip install agentmesh-avp` |
 | structural-authz-agentmesh | Structural Authorization | `pip install structural-authz-agentmesh` |
 | nostr-wot | Nostr Web-of-Trust | `pip install nostr-wot` |

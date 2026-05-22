@@ -9,15 +9,49 @@ Entries added via AuditLog or MerkleAuditChain get automatic hash chaining.
 
 from __future__ import annotations
 
+import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional, Any
 from pydantic import BaseModel, Field
 import hashlib
+import hmac
 import json
 import uuid
 
 if TYPE_CHECKING:
     from .audit_backends import AuditSink
+
+
+@dataclass(frozen=True)
+class _EnvContext:
+    """Immutable snapshot of execution-environment context captured at AuditLog init."""
+
+    sandbox_id: Optional[str]
+    environment: Optional[str]
+    container_runtime: Optional[str]
+
+
+def _capture_env_context() -> _EnvContext:
+    """Read execution-environment variables once and return an immutable snapshot.
+
+    Resolution rules:
+    * ``sandbox_id``: prefers ``OPENSHELL_SANDBOX_ID``; falls back to bare ``SANDBOX_ID``.
+    * ``environment``: reads ``AGT_ENVIRONMENT``.
+    * ``container_runtime``: reads ``OPENSHELL_CONTAINER_RUNTIME``.
+
+    Empty strings are treated as absent (``None``).
+    """
+    sandbox_id: Optional[str] = (
+        os.getenv("OPENSHELL_SANDBOX_ID") or os.getenv("SANDBOX_ID") or None
+    )
+    environment: Optional[str] = os.getenv("AGT_ENVIRONMENT") or None
+    container_runtime: Optional[str] = os.getenv("OPENSHELL_CONTAINER_RUNTIME") or None
+    return _EnvContext(
+        sandbox_id=sandbox_id,
+        environment=environment,
+        container_runtime=container_runtime,
+    )
 
 
 class AuditEntry(BaseModel):
@@ -36,10 +70,30 @@ class AuditEntry(BaseModel):
     event_type: str
     agent_did: str
     action: str
+    arguments_hash: str | None = Field(
+        default=None,
+        description=(
+            "SHA-256 hash (hex, lowercase) of the canonical-JSON serialization of "
+            "the action arguments. Defends downstream verifiers against silent "
+            "mutation of recorded arguments. NOT part of the canonical entry hash "
+            "in spec v1.0; v1.1 will extend MerkleAuditChain coverage. "
+            "See spec §4.3.1."
+        ),
+    )
 
     # Context
     resource: Optional[str] = None
     target_did: Optional[str] = None
+    approver_did: str | None = Field(
+        default=None,
+        description=(
+            "DID of the principal whose approval authorized this action. Surfaces "
+            "approval-chain identity in the audit row itself (independent of the "
+            "workflow approval subsystem). NOT part of the canonical entry hash "
+            "in spec v1.0; v1.1 will extend MerkleAuditChain coverage. "
+            "See spec §4.3.1."
+        ),
+    )
 
     # Data (sanitized - no secrets)
     data: dict = Field(default_factory=dict)
@@ -50,6 +104,15 @@ class AuditEntry(BaseModel):
     # Policy evaluation
     policy_decision: Optional[str] = None
     matched_rule: Optional[str] = None
+    policy_version: str | None = Field(
+        default=None,
+        description=(
+            "Version identifier of the policy bundle that produced this decision. "
+            "Defends against silent policy downgrade (replaying old decisions under "
+            "a newer policy version). NOT part of the canonical entry hash in spec "
+            "v1.0; v1.1 will extend MerkleAuditChain coverage. See spec §4.3.1."
+        ),
+    )
 
     # Chaining — populated automatically by MerkleAuditChain.add_entry()
     previous_hash: str = Field(default="")
@@ -58,6 +121,35 @@ class AuditEntry(BaseModel):
     # Metadata
     trace_id: Optional[str] = None
     session_id: Optional[str] = None
+
+    # Execution-context enrichment (optional; not included in integrity hash)
+    sandbox_id: Optional[str] = None
+    environment: Optional[str] = None
+    container_runtime: Optional[str] = None
+    # Sandbox/environment context (auto-populated from env vars when available)
+    sandbox_id: Optional[str] = Field(
+        default=None,
+        description="Sandbox or container ID. Reads SANDBOX_ID or OPENSHELL_SANDBOX_ID env var.",
+    )
+    environment: Optional[str] = Field(
+        default=None,
+        description="Deployment environment. Reads AGT_ENVIRONMENT env var.",
+    )
+    compute_driver: Optional[str] = Field(
+        default=None,
+        description="Compute driver (e.g., docker, openshell, aca). Reads OPENSHELL_COMPUTE_DRIVER env var.",
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Auto-populate sandbox context fields from environment variables."""
+        if self.sandbox_id is None:
+            self.sandbox_id = (
+                os.environ.get("SANDBOX_ID") or os.environ.get("OPENSHELL_SANDBOX_ID") or None
+            )
+        if self.environment is None:
+            self.environment = os.environ.get("AGT_ENVIRONMENT") or None
+        if self.compute_driver is None:
+            self.compute_driver = os.environ.get("OPENSHELL_COMPUTE_DRIVER") or None
 
     def compute_hash(self) -> str:
         """Compute the SHA-256 hash of this entry's canonical fields.
@@ -85,7 +177,7 @@ class AuditEntry(BaseModel):
         Returns:
             ``True`` if ``entry_hash`` equals ``compute_hash()``.
         """
-        return self.entry_hash == self.compute_hash()
+        return hmac.compare_digest(self.entry_hash, self.compute_hash())
 
     # ── CloudEvents v1.0 ──────────────────────────────────
 
@@ -119,6 +211,9 @@ class AuditEntry(BaseModel):
                 "outcome": self.outcome,
                 "policy_decision": self.policy_decision,
                 "matched_rule": self.matched_rule,
+                **({"policy_version": self.policy_version} if self.policy_version else {}),
+                **({"arguments_hash": self.arguments_hash} if self.arguments_hash else {}),
+                **({"approver_did": self.approver_did} if self.approver_did else {}),
                 **self.data,
             },
             "agentmeshentryhash": self.entry_hash,
@@ -362,6 +457,8 @@ class AuditLog:
         self._by_agent: dict[str, list[str]] = {}
         self._by_type: dict[str, list[str]] = {}
         self._sink = sink
+        # Capture environment context once at init; never re-read per-entry.
+        self._env_context: _EnvContext = _capture_env_context()
 
     def log(
         self,
@@ -373,8 +470,18 @@ class AuditLog:
         outcome: str = "success",
         policy_decision: Optional[str] = None,
         trace_id: Optional[str] = None,
+        *,
+        arguments_hash: str | None = None,
+        approver_did: str | None = None,
+        policy_version: str | None = None,
     ) -> AuditEntry:
-        """Log an audit event."""
+        """Log an audit event.
+
+        The ``arguments_hash``, ``approver_did``, and ``policy_version`` parameters
+        are accepted as keyword-only arguments to preserve the positional signature
+        for existing callers. See spec §4.3.1 for semantics and the v1.0/v1.1 hash
+        coverage caveat.
+        """
         entry = AuditEntry(
             event_type=event_type,
             agent_did=agent_did,
@@ -384,6 +491,12 @@ class AuditLog:
             outcome=outcome,
             policy_decision=policy_decision,
             trace_id=trace_id,
+            sandbox_id=self._env_context.sandbox_id,
+            environment=self._env_context.environment,
+            container_runtime=self._env_context.container_runtime,
+            arguments_hash=arguments_hash,
+            approver_did=approver_did,
+            policy_version=policy_version,
         )
 
         self._chain.add_entry(entry)
@@ -495,7 +608,7 @@ class AuditLog:
         entries = self.query(start_time=start_time, end_time=end_time, limit=10000)
 
         return {
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).isoformat(),
             "merkle_root": self._chain.get_root_hash(),
             "chain_root": self._chain.get_root_hash(),
             "entry_count": len(entries),

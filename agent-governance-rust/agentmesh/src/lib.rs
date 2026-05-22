@@ -18,15 +18,30 @@
 //! assert!(result.allowed);
 //! ```
 
+#![cfg_attr(test, allow(deprecated))]
+
 pub mod audit;
 pub mod control_support;
-#[allow(dead_code)]
 pub mod governance_support;
 pub mod identity;
 pub mod identity_support;
 pub mod integration_support;
 pub mod lifecycle;
-pub mod mcp;
+/// Deprecated: use the [`agentmesh-mcp`](https://crates.io/crates/agentmesh-mcp) crate directly.
+///
+/// `agentmesh::mcp` is a compatibility re-export of `agentmesh_mcp::mcp` and
+/// will be removed in the next major release. Standardize new code on the
+/// `agentmesh-mcp` crate.
+///
+/// Tracking issue:
+/// <https://github.com/microsoft/agent-governance-toolkit/issues/2013>.
+#[deprecated(
+    since = "3.5.0",
+    note = "use the `agentmesh-mcp` crate directly; `agentmesh::mcp` will be removed in the next major release (see issue #2013)"
+)]
+pub mod mcp {
+    pub use agentmesh_mcp::mcp::*;
+}
 pub mod policy;
 pub mod prompt_injection;
 pub(crate) mod regex_cache;
@@ -37,6 +52,7 @@ pub mod trust;
 pub mod trust_support;
 pub mod types;
 
+pub use agentmesh_mcp::mcp::*;
 pub use audit::AuditLogger;
 pub use control_support::{
     CircuitBreaker, CircuitState, ErrorBudget, HealthStatus, IncidentRecord, KillSwitch,
@@ -78,7 +94,6 @@ pub use integration_support::{
     ShadowAgent,
 };
 pub use lifecycle::{LifecycleEvent, LifecycleManager, LifecycleState};
-pub use mcp::*;
 pub use policy::{PolicyEngine, PolicyError};
 pub use prompt_injection::{
     AuditRecord as PromptInjectionAuditRecord, DetectionConfig as PromptInjectionDetectionConfig,

@@ -30,6 +30,9 @@ cargo add agentmesh-mcp
 agentmesh-mcp = "3.5.0"
 ```
 
+`agentmesh-mcp` is the canonical MCP implementation. The broader `agentmesh`
+crate keeps `agentmesh::mcp` only as a deprecated compatibility re-export.
+
 ## Quick Start
 
 ```rust
@@ -92,7 +95,7 @@ let signer = McpMessageSigner::new(
 let message = signer.sign("hello from mcp")?;
 signer.verify(&message)?;
 
-let redactor = CredentialRedactor::new()?;
+let redactor = CredentialRedactor::new();
 let result = redactor.redact("Authorization: Bearer super-secret-token");
 assert!(result.sanitized.contains("[REDACTED_BEARER_TOKEN]"));
 # Ok::<(), agentmesh_mcp::McpError>(())
@@ -113,7 +116,7 @@ use agentmesh::{
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-let redactor = CredentialRedactor::new()?;
+let redactor = CredentialRedactor::new();
 let audit = Arc::new(InMemoryAuditSink::new(redactor.clone()));
 let metrics = McpMetricsCollector::default();
 let scanner = McpResponseScanner::new(
@@ -184,6 +187,7 @@ let config = DetectionConfig {
     allowlist: vec!["quoted training example".into()],
     custom_patterns: vec![r"(?i)reveal\s+.*system\s+prompt".into()],
     audit_capacity: 128,
+    ..Default::default()
 };
 let mut detector = PromptInjectionDetector::with_config(config)?;
 
@@ -285,6 +289,11 @@ body and the optional `name` label never appear in `DetectionResult`,
 either) weakens detection and is the operator's responsibility. The same
 applies to disabling a built-in rule. Document any override in your repo's
 threat model alongside the reason it was applied.
+
+**Performance note.** Built-in rule additions are compiled when the detector is
+constructed, and every enabled rule is evaluated during each scan. Keep
+override corpora narrow, deduplicate overlapping regexes, and prefer the
+smallest rule family that captures the local policy.
 
 The detector audit log is bounded and intentionally hash-only. Use the hashes,
 lengths, sanitized source labels, rule IDs, and threat levels for correlation

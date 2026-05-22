@@ -6,7 +6,7 @@ Scope Chains
 Simple scope passing: sub-agent gets parent's scopes minus any denied ones.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import ClassVar, Optional
 from pydantic import BaseModel, Field, field_validator
 import hashlib
@@ -30,13 +30,13 @@ class UserContext(BaseModel):
     user_email: Optional[str] = Field(None, description="User email for audit trails")
     roles: list[str] = Field(default_factory=list, description="User roles for RBAC")
     permissions: list[str] = Field(default_factory=list, description="Fine-grained permissions")
-    issued_at: datetime = Field(default_factory=datetime.utcnow)
+    issued_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = Field(None, description="OBO context expiration")
     metadata: dict = Field(default_factory=dict, description="Additional user attributes")
 
     def is_valid(self) -> bool:
         """Check if the user context is still valid."""
-        if self.expires_at and datetime.utcnow() > self.expires_at:
+        if self.expires_at and datetime.now(timezone.utc) > self.expires_at:
             return False
         return True
 
@@ -60,7 +60,7 @@ class UserContext(BaseModel):
         ttl_seconds: int = 3600,
     ) -> "UserContext":
         """Create a new user context with TTL."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return cls(
             user_id=user_id,
             user_email=user_email,
@@ -93,7 +93,7 @@ class DelegationLink(BaseModel):
     delegated_capabilities: list[str] = Field(..., description="Capabilities granted to child")
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: Optional[datetime] = Field(None)
 
     # User context for OBO flows
@@ -105,12 +105,20 @@ class DelegationLink(BaseModel):
     previous_link_hash: Optional[str] = Field(None, description="Hash of previous link in chain")
 
     def verify_capability_narrowing(self) -> bool:
-        """Verify that delegated capabilities are a subset of parent's."""
-        for cap in self.delegated_capabilities:
-            if cap not in self.parent_capabilities:
-                if not self._is_narrower_capability(cap, self.parent_capabilities):
-                    return False
-        return True
+        """Verify that every delegated capability is a subset of the parent's.
+
+        A capability is considered narrowed when it appears literally
+        in the parent set or matches a parent wildcard via
+        ``_is_narrower_capability``. The previous early-return form
+        fanned the same predicate across two nested ``if`` blocks; the
+        ``all(...)`` form is shorter, has one predicate, and short-
+        circuits identically.
+        """
+        return all(
+            cap in self.parent_capabilities
+            or self._is_narrower_capability(cap, self.parent_capabilities)
+            for cap in self.delegated_capabilities
+        )
 
     def _is_narrower_capability(self, cap: str, parent_caps: list[str]) -> bool:
         """Check if a capability is a narrowed version of a parent capability."""
@@ -140,7 +148,7 @@ class DelegationLink(BaseModel):
 
     def is_valid(self) -> bool:
         """Check if this link is valid (expiration and capability narrowing only)."""
-        if self.expires_at and datetime.utcnow() > self.expires_at:
+        if self.expires_at and datetime.now(timezone.utc) > self.expires_at:
             return False
 
         if not self.verify_capability_narrowing():
@@ -215,7 +223,7 @@ class ScopeChain(BaseModel):
         return v
 
     # Chain metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     total_depth: int = Field(default=0)
 
     # Verification

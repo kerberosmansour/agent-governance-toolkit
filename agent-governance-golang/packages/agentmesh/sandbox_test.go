@@ -6,6 +6,7 @@ package agentmesh
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // Compile-time interface satisfaction check.
@@ -48,6 +49,24 @@ func TestDockerSandboxProviderNew(t *testing.T) {
 	}
 	// available may be true or false depending on the host; just verify no panic.
 	t.Logf("Docker available: %v", p.IsAvailable())
+}
+
+func TestNewDockerSandboxProviderDoesNotProbeDocker(t *testing.T) {
+	// The constructor must not block on `docker info`. Wall-clock time
+	// is the most direct proxy for I/O having happened — a non-zero
+	// dockerInfoTimeout would dominate the duration if the probe ran
+	// here. The bound is intentionally loose (one tenth of the probe
+	// timeout) so we don't false-fail on slow CI.
+	start := time.Now()
+	p := NewDockerSandboxProvider("alpine:latest")
+	elapsed := time.Since(start)
+	if p == nil {
+		t.Fatal("NewDockerSandboxProvider returned nil")
+	}
+	if elapsed > dockerInfoTimeout/10 {
+		t.Fatalf("constructor took %s (> %s); appears to be probing docker synchronously",
+			elapsed, dockerInfoTimeout/10)
+	}
 }
 
 func TestSandboxProviderInterface(t *testing.T) {
@@ -118,14 +137,32 @@ func TestCreateSessionRejectsInvalidAgentID(t *testing.T) {
 
 func TestCreateSessionAcceptsValidAgentID(t *testing.T) {
 	// Confirms the regex is not over-restrictive on legitimate IDs.
-	// We don't actually call docker — IsAvailable=false short-circuits.
-	p := &DockerSandboxProvider{available: false, image: "alpine"}
-	_, err := p.CreateSession("agent-123_test.local", nil)
-	// Expect a `docker is not available` error, not an `invalid agentID` error.
-	if err == nil {
-		t.Fatal("expected docker-unavailable error, got nil")
-	}
-	if strings.Contains(err.Error(), "invalid agentID") {
+	// If Docker is available the call may succeed; we only assert the
+	// regex did not reject the agent ID.
+	p := NewDockerSandboxProvider("alpine")
+	session, err := p.CreateSession("agent-123_test.local", nil)
+	if err != nil && strings.Contains(err.Error(), "invalid agentID") {
 		t.Fatalf("regex rejected a valid agentID: %v", err)
+	}
+	// Clean up if a container was actually created.
+	if err == nil && session != nil {
+		_ = p.DestroySession(session.AgentID, session.SessionID)
+	}
+}
+
+func TestRandomHexProducesUniqueValues(t *testing.T) {
+	// 1000 consecutive calls must all be distinct. Two collisions from
+	// crypto/rand at 16 hex characters (8 bytes) is astronomically
+	// unlikely; if this fails, the entropy source is broken.
+	seen := make(map[string]struct{}, 1000)
+	for i := 0; i < 1000; i++ {
+		v := randomHex(8)
+		if len(v) != 16 {
+			t.Fatalf("randomHex(8) returned %d chars, want 16", len(v))
+		}
+		if _, dup := seen[v]; dup {
+			t.Fatalf("randomHex collided after %d iterations: %q", i, v)
+		}
+		seen[v] = struct{}{}
 	}
 }

@@ -68,9 +68,11 @@ runs:
 
     - name: Install Agent Governance Toolkit
       shell: bash
+      env:
+        AGT_TOOLKIT_VERSION: ${{ inputs.toolkit-version }}
       run: |
-        if [ -n "${{ inputs.toolkit-version }}" ]; then
-          pip install --quiet "agent-governance-toolkit[full]==${{ inputs.toolkit-version }}"
+        if [ -n "$AGT_TOOLKIT_VERSION" ]; then
+          pip install --quiet "agent-governance-toolkit[full]==$AGT_TOOLKIT_VERSION"
         else
           pip install --quiet "agent-governance-toolkit[full]"
         fi
@@ -78,10 +80,16 @@ runs:
     - name: Run governance check
       id: run
       shell: bash
+      env:
+        AGT_COMMAND: ${{ inputs.command }}
+        AGT_FORMAT: ${{ inputs.output-format }}
+        AGT_MANIFEST_PATH: ${{ inputs.manifest-path }}
+        AGT_POLICY_PATH: ${{ inputs.policy-path }}
+        AGT_CONTEXT_JSON: ${{ inputs.context-json }}
       run: |
         set +e
-        COMMAND="${{ inputs.command }}"
-        FORMAT="${{ inputs.output-format }}"
+        COMMAND="$AGT_COMMAND"
+        FORMAT="$AGT_FORMAT"
         STATUS="pass"
         EXIT_CODE=0
         OUTPUT=""
@@ -108,7 +116,7 @@ runs:
             ;;
 
           marketplace-verify)
-            MANIFEST="${{ inputs.manifest-path }}"
+            MANIFEST="$AGT_MANIFEST_PATH"
             if [ -z "$MANIFEST" ]; then
               echo "::error::manifest-path is required for marketplace-verify command"
               exit 1
@@ -119,21 +127,23 @@ runs:
             ;;
 
           policy-evaluate)
-            POLICY="${{ inputs.policy-path }}"
-            CONTEXT='${{ inputs.context-json }}'
+            POLICY="$AGT_POLICY_PATH"
+            CONTEXT="$AGT_CONTEXT_JSON"
             if [ -z "$POLICY" ]; then
               echo "::error::policy-path is required for policy-evaluate command"
               exit 1
             fi
             echo "📋 Evaluating policy: $POLICY"
-            OUTPUT=$(python -c "
-        import json, sys
+            OUTPUT=$(AGT_POLICY="$POLICY" AGT_CONTEXT="$CONTEXT" python -c "
+        import json, sys, os
+
         from agent_os.policies import PolicyEvaluator
 
         evaluator = PolicyEvaluator()
-        evaluator.load_policies('$POLICY')
+        evaluator.load_policies(os.environ['AGT_POLICY'])
 
-        context = json.loads('$CONTEXT') if '$CONTEXT' else {}
+        ctx_raw = os.environ.get('AGT_CONTEXT', '')
+        context = json.loads(ctx_raw) if ctx_raw else {}
         decision = evaluator.evaluate(context)
 
         result = {
@@ -166,7 +176,7 @@ runs:
             [ $GV_EXIT -ne 0 ] && FAIL=1
 
             # 2. Marketplace verify (if manifest provided)
-            MANIFEST="${{ inputs.manifest-path }}"
+            MANIFEST="$AGT_MANIFEST_PATH"
             if [ -n "$MANIFEST" ]; then
               echo "--- Marketplace Verification ---"
               MV_OUT=$(python -m agent_marketplace.cli_commands verify "$MANIFEST" 2>&1)
@@ -176,15 +186,16 @@ runs:
             fi
 
             # 3. Policy evaluate (if policy provided)
-            POLICY="${{ inputs.policy-path }}"
+            POLICY="$AGT_POLICY_PATH"
             if [ -n "$POLICY" ]; then
               echo "--- Policy Evaluation ---"
-              PE_OUT=$(python -c "
-        import json, sys
+              PE_OUT=$(AGT_POLICY="$POLICY" AGT_CONTEXT="$AGT_CONTEXT_JSON" python -c "
+        import json, sys, os
         from agent_os.policies import PolicyEvaluator
         evaluator = PolicyEvaluator()
-        evaluator.load_policies('$POLICY')
-        context = json.loads('${{ inputs.context-json }}') if '${{ inputs.context-json }}' else {}
+        evaluator.load_policies(os.environ['AGT_POLICY'])
+        ctx_raw = os.environ.get('AGT_CONTEXT', '')
+        context = json.loads(ctx_raw) if ctx_raw else {}
         decision = evaluator.evaluate(context)
         print(json.dumps({'allowed': decision.allowed, 'action': decision.action, 'reason': decision.reason}, indent=2))
         sys.exit(0 if decision.allowed else 1)

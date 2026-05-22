@@ -113,6 +113,46 @@ For major design changes, always ask the maintainer (@imran-siddique) before pro
 
 Do NOT auto-merge large feature PRs without maintainer review.
 
+## PR Description Standards
+
+Every PR must have a well-structured, properly formatted description. Lightweight or mangled descriptions are not acceptable.
+
+### Required sections
+
+1. **Summary** (1-2 sentences): What this PR does and why.
+2. **Problem** (optional for trivial fixes): What was broken, missing, or suboptimal.
+3. **Changes**: A table or bullet list of files changed and what changed in each. Use a markdown table for 3+ files.
+4. **Testing**: How the changes were verified (test results, manual validation, docs-only note).
+
+### Formatting rules
+
+- Use proper markdown: headings (`##`), backtick code spans, tables, blank lines between sections.
+- Never pass PR body text through PowerShell inline strings. Always write the body to a temp file with Python (to preserve backticks and special characters) and use `gh pr create --body-file`.
+- Verify the rendered PR description on GitHub after creation. If formatting is broken, fix it immediately with `gh pr edit --body-file`.
+- No escaped backslashes where backticks should be. No missing blank lines between paragraphs. No corrupted characters.
+
+### Template
+
+```markdown
+## Summary
+
+<What and why, 1-2 sentences.>
+
+## Problem
+
+<What was broken or missing. Skip for trivial changes.>
+
+## Changes
+
+| File | What changed |
+|------|-------------|
+| `path/to/file.py` | Description of change |
+
+## Testing
+
+<How verified: "All N tests pass", "Docs-only, verified links", etc.>
+```
+
 ## External Contribution Quality Gate
 
 When external contributors open issues or PRs proposing integration with their own project/tool/library, apply these quality checks before investing review time:
@@ -198,7 +238,7 @@ Before approving or merging ANY PR, verify ALL of the following:
 1. **Read the actual diff** — don't rely on PR description alone
 2. **Attribution & prior art** — check if the PR implements patterns similar to known open-source projects. If it does, verify proper attribution exists in the PR description and code. Check whether the PR arrived shortly after a community member proposed similar work in an issue — if so, verify the contributor isn't submitting an uncredited derivative. **PRs without proper attribution will not be merged.**
 3. **Dependency confusion scan** — check every `pip install`, `npm install`, `cargo add` command in docs/code for unregistered package names. The registered names are:
-   - **PyPI:** `agent-os-kernel`, `agentmesh-platform`, `agent-hypervisor`, `agentmesh-runtime`, `agent-sre`, `agent-governance-toolkit`, `agentmesh-lightning`, `agentmesh-marketplace`, `agent-sandbox`
+   - **PyPI:** `agent-os-kernel`, `agentmesh-platform`, `agent-hypervisor`, `agentmesh-runtime`, `agent-sre`, `agent-governance-toolkit`, `agentmesh-lightning`, `agentmesh-marketplace`, `agt-sandbox`
    - **PyPI (local-only, not published):** `agent-governance-dotnet`, `agentmesh-integrations`, `agent-primitives`, `emk`
    - **PyPI (common deps):** `streamlit`, `plotly`, `pandas`, `networkx`, `aioredis`, `pypdf`, `spacy`, `slack-sdk`, `docker`, `langchain-openai`
    - **npm:** `@microsoft/agent-os-kernel`

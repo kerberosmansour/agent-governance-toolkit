@@ -149,6 +149,44 @@ class TestGovernedRunnerStep:
         with pytest.raises(PolicyViolationError):
             runner._handle_violation("P", "desc", "critical", True)
 
+    def test_step_unexpected_kernel_failure_logs_traceback(self, caplog):
+        """Unexpected exceptions inside the kernel must surface a traceback.
+
+        Regression for an earlier formulation that used
+        ``logger.error(f"...{e}")`` in the bare-except branch: the stack
+        frame information was silently dropped, which made non-policy
+        kernel failures impossible to diagnose from the logs.
+        Switching to ``logger.exception`` preserves ``exc_info`` so the
+        traceback travels with the log record.
+        """
+        kernel = _make_mock_kernel()
+        runner = GovernedRunner(kernel)
+
+        async def _exploding_agent(_: Any) -> Any:
+            raise RuntimeError("kernel boom")
+
+        runner.agent = _exploding_agent  # type: ignore[assignment]
+
+        # Force the "no execute method" branch so ``self.agent`` is invoked
+        # directly. ``hasattr(...) == False`` for both ``execute_async`` and
+        # ``execute`` ensures we hit the fallback in ``step``.
+        kernel = MagicMock(spec=[])
+        runner.kernel = kernel
+
+        with caplog.at_level("ERROR", logger="agent_lightning_gov.runner"):
+            rollout = asyncio.run(runner.step("trigger"))
+
+        assert rollout.success is False
+        # ``logger.exception`` records the active exception in ``exc_info``,
+        # which is the contract that ``logger.error(f"...{e}")`` violated.
+        runner_records = [
+            r for r in caplog.records if r.name == "agent_lightning_gov.runner"
+        ]
+        assert any(
+            "Execution failed" in r.getMessage() and r.exc_info is not None
+            for r in runner_records
+        )
+
 
 class TestGovernedRunnerViolationTracking:
     def test_violation_count_increments(self):
@@ -193,6 +231,91 @@ class TestGovernedRunnerCallableAnnotation:
         non_none = [a for a in args if a is not type(None)]
         assert len(non_none) == 1
         assert typing.get_origin(non_none[0]) in (typing.Callable, __import__("collections.abc", fromlist=["Callable"]).Callable)
+
+
+class TestGovernedRunnerStepConcurrency:
+    """Concurrent ``step()`` calls must not share violation buffers.
+
+    Regression for REVIEW.md HIGH Extensions #8: previously ``step()`` used
+    instance-level ``self._current_violations`` / ``self._current_signals``
+    lists. Two concurrent rollouts interleaving at every ``await`` shared
+    those lists, so violations raised during rollout A appeared in rollout
+    B's ``GovernedRollout.violations`` (and vice versa).
+
+    The fix binds per-step lists to ``contextvars.ContextVar``s; each
+    asyncio task sees only its own list.
+    """
+
+    def test_two_concurrent_steps_do_not_share_violations(self):
+        """Run two ``step()`` calls concurrently. Each rollout's violations
+        must reflect only the violations raised during *its* execution."""
+
+        # Track which step is currently running by name, so the test can
+        # verify the per-rollout buckets correctly partition violations.
+        async def _run():
+            # A custom kernel that lets us interleave violation emission
+            # between the two step calls.
+            class InterleaveKernel:
+                def __init__(self):
+                    self._cb = None
+                    # gate_a triggers step A's violation; gate_b triggers B's.
+                    self.gate_a = asyncio.Event()
+                    self.gate_b = asyncio.Event()
+                    self.policies = []
+
+                def on_policy_violation(self, cb):
+                    self._cb = cb
+
+                def on_signal(self, _cb):
+                    pass
+
+                async def execute_async(self, _agent, input):
+                    # Each step's kernel call awaits its own gate, then emits
+                    # a violation that should ONLY land in that step's bucket.
+                    if input == "A":
+                        await self.gate_a.wait()
+                        self._cb("PolicyA", "violation-A", "high", True)
+                    else:
+                        await self.gate_b.wait()
+                        self._cb("PolicyB", "violation-B", "medium", False)
+                    return f"result-{input}"
+
+            kernel = InterleaveKernel()
+            runner = GovernedRunner(kernel)
+            runner.agent = AsyncMock(return_value="x")
+            # Wire the kernel hooks manually (init() expects an agent).
+            kernel.on_policy_violation(runner._handle_violation)
+
+            # Kick off both steps concurrently.
+            task_a = asyncio.create_task(runner.step("A"))
+            task_b = asyncio.create_task(runner.step("B"))
+
+            # Let both reach the await on their gates, then interleave the
+            # violations so step A's violation is dispatched while step B is
+            # also mid-flight — this is the precise race the old code mixed.
+            await asyncio.sleep(0)  # yield once so both tasks start
+            kernel.gate_a.set()
+            await asyncio.sleep(0)
+            kernel.gate_b.set()
+
+            rollout_a, rollout_b = await asyncio.gather(task_a, task_b)
+            return rollout_a, rollout_b
+
+        rollout_a, rollout_b = asyncio.run(_run())
+
+        # Each rollout has exactly its own violation, with no cross-over.
+        assert [v.policy_name for v in rollout_a.violations] == ["PolicyA"]
+        assert [v.policy_name for v in rollout_b.violations] == ["PolicyB"]
+        assert rollout_a.violations[0].description == "violation-A"
+        assert rollout_b.violations[0].description == "violation-B"
+
+    def test_direct_handle_violation_still_uses_instance_list(self):
+        """Calling ``_handle_violation`` directly (outside a step) keeps the
+        legacy instance-list path so existing test usage still works."""
+        runner = GovernedRunner(_make_mock_kernel())
+        runner._handle_violation("P", "d", "low", False)
+        assert len(runner._current_violations) == 1
+        assert runner._current_violations[0].policy_name == "P"
 
 
 class TestGovernedRunnerCallbacks:
@@ -291,7 +414,7 @@ class TestPolicyViolation:
         assert v.penalty == 0.0
 
     def test_timestamp_is_timezone_aware(self):
-        """Regression: ``datetime.utcnow()`` produced a naive timestamp
+        """Regression: ``datetime.now(timezone.utc)`` produced a naive timestamp
         that compared-different against ``datetime.now(timezone.utc)``
         used elsewhere in the codebase. The default must be aware."""
         v = PolicyViolation(PolicyViolationType.BLOCKED, "P", "d", "high")

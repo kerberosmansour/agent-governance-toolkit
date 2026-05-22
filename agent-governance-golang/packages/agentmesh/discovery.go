@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -79,11 +80,33 @@ type DiscoveredAgent struct {
 }
 
 // AddEvidence appends evidence and updates the aggregate confidence and timestamps.
+//
+// Confidence is combined using a noisy-OR formula:
+//
+//	combined = 1 - (1 - prior) * (1 - new)
+//
+// rather than `max(...)`. This lets multiple corroborating low-confidence
+// signals raise the aggregate: two 0.5 hits combine to 0.75, three to
+// 0.875, etc., asymptoting at 1. `max(...)` would have left the aggregate
+// stuck at 0.5 forever no matter how many independent confirmations
+// arrived.
+//
+// The formula assumes independence between evidence sources. Callers
+// must NOT add the same observation twice (e.g. the same file path
+// twice via two scanners) — a duplicate would falsely inflate the
+// score. The discovery pipeline deduplicates via `Fingerprint` before
+// calling this method.
+//
+// Confidence inputs outside [0, 1] are clamped before combining.
 func (a *DiscoveredAgent) AddEvidence(evidence DiscoveryEvidence) {
 	a.Evidence = append(a.Evidence, evidence)
-	if evidence.Confidence > a.Confidence {
-		a.Confidence = evidence.Confidence
+	c := evidence.Confidence
+	if c < 0 {
+		c = 0
+	} else if c > 1 {
+		c = 1
 	}
+	a.Confidence = 1 - (1-a.Confidence)*(1-c)
 	if a.FirstSeenAt.IsZero() || evidence.Timestamp.Before(a.FirstSeenAt) {
 		a.FirstSeenAt = evidence.Timestamp
 	}
@@ -888,21 +911,11 @@ func truncateForFingerprint(value string, max int) string {
 }
 
 func sortStrings(values []string) {
-	for index := 0; index < len(values); index++ {
-		for inner := index + 1; inner < len(values); inner++ {
-			if values[inner] < values[index] {
-				values[index], values[inner] = values[inner], values[index]
-			}
-		}
-	}
+	sort.Strings(values)
 }
 
 func sortDiscoveredAgents(values []DiscoveredAgent) {
-	for index := 0; index < len(values); index++ {
-		for inner := index + 1; inner < len(values); inner++ {
-			if values[inner].Fingerprint < values[index].Fingerprint {
-				values[index], values[inner] = values[inner], values[index]
-			}
-		}
-	}
+	sort.Slice(values, func(i, j int) bool {
+		return values[i].Fingerprint < values[j].Fingerprint
+	})
 }

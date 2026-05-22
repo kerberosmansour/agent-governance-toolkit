@@ -6,6 +6,7 @@ package agentmesh
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -162,6 +163,17 @@ func KillSwitchMiddleware(registry *KillSwitchRegistry) OperationMiddleware {
 			decision := registry.DecisionFor(operation.AgentID, capability)
 			ensureOperationMetadata(operation)
 			operation.Metadata["kill_switch_decision"] = decision
+			operation.Metadata["kill_switch_allowed"] = decision.Allowed
+			if decision.Scope != nil {
+				operation.Metadata["kill_switch_scope"] = decision.Scope.String()
+			}
+			if decision.Event != nil {
+				operation.Metadata["kill_switch_reason"] = string(decision.Event.Reason)
+				operation.Metadata["kill_switch_timestamp"] = decision.Event.Timestamp
+				if decision.Event.Message != "" {
+					operation.Metadata["kill_switch_message"] = decision.Event.Message
+				}
+			}
 			if err := killSwitchDecisionError(decision); err != nil {
 				return err
 			}
@@ -396,13 +408,27 @@ func NewHTTPGovernanceMiddleware(config HTTPMiddlewareConfig) (func(http.Handler
 			if recorder.WroteHeader() {
 				return
 			}
+			// Map governance errors to a stable client-facing message: the
+			// sentinel's `.Error()` for known cases (no wrapped detail
+			// leaked), `http.StatusText` for everything else. Wrapped
+			// errors can carry policy rule names, tool names, action
+			// identifiers, or risk-score numbers; the audit log already
+			// captures them server-side via the audit middleware.
 			statusCode := http.StatusForbidden
-			if !errors.Is(err, ErrPolicyDenied) &&
-				!errors.Is(err, ErrKillSwitchActive) &&
-				!errors.Is(err, ErrVerifiedAgentIdentityRequired) {
+			var clientMessage string
+			switch {
+			case errors.Is(err, ErrPolicyDenied):
+				clientMessage = ErrPolicyDenied.Error()
+			case errors.Is(err, ErrKillSwitchActive):
+				clientMessage = ErrKillSwitchActive.Error()
+			case errors.Is(err, ErrVerifiedAgentIdentityRequired):
+				clientMessage = ErrVerifiedAgentIdentityRequired.Error()
+			default:
 				statusCode = http.StatusInternalServerError
+				clientMessage = http.StatusText(http.StatusInternalServerError)
+				log.Printf("agentmesh: governance middleware unexpected error: %v", err)
 			}
-			http.Error(w, err.Error(), statusCode)
+			http.Error(w, clientMessage, statusCode)
 		})
 	}, nil
 }

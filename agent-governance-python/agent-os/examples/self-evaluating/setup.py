@@ -38,9 +38,9 @@ setup(
     install_requires=requirements,
     extras_require={
         "dev": [
-            "pytest>=9.0.3; python_version >= '3.10'",
+            "pytest>=7.0.0",
             "pytest-cov>=4.0.0",
-            "black>=26.3.1; python_version >= '3.10'",
+            "black>=22.0.0",
             "flake8>=5.0.0",
             "mypy>=0.991",
         ],

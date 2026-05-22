@@ -43,9 +43,9 @@ setup(
     ],
     extras_require={
         "dev": [
-            "pytest>=9.0.3,<10.0.0; python_version >= '3.10'",
+            "pytest>=7.0.0,<9.0.0",
             "pytest-cov>=4.0.0,<6.0.0",
-            "black>=26.3.1,<27.0.0; python_version >= '3.10'",
+            "black>=22.0.0,<25.0.0",
             "flake8>=5.0.0,<8.0.0",
             "mypy>=0.990,<2.0.0",
         ],

@@ -487,3 +487,80 @@ func TestGetEntriesReturnsClones(t *testing.T) {
 		t.Error("chain verify should still pass after caller mutates a GetEntries result")
 	}
 }
+
+// Regression: under the previous "|"-separated hash format, two field-sets
+// that differed only in where the "|" sat hashed identically — e.g.
+// AgentID="a", Action="b|c" vs AgentID="a|b", Action="c". The length-prefix
+// encoding closes that seam: the lengths are committed to the digest, so
+// the two layouts produce distinct hashes.
+func TestComputeHashSeparatorForgery(t *testing.T) {
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	a := &AuditEntry{
+		Timestamp:    ts,
+		AgentID:      "a",
+		Action:       "b|c",
+		Decision:     Allow,
+		PreviousHash: "",
+	}
+	b := &AuditEntry{
+		Timestamp:    ts,
+		AgentID:      "a|b",
+		Action:       "c",
+		Decision:     Allow,
+		PreviousHash: "",
+	}
+
+	hashA := computeHash(a)
+	hashB := computeHash(b)
+	if hashA == hashB {
+		t.Fatalf("hash collision across separator boundary: AgentID=%q,Action=%q == AgentID=%q,Action=%q (%s)",
+			a.AgentID, a.Action, b.AgentID, b.Action, hashA)
+	}
+}
+
+// Length-prefixed encoding also rejects collisions across other field
+// boundaries — action vs decision, decision vs previous_hash.
+func TestComputeHashDistinguishesFieldBoundaries(t *testing.T) {
+	ts := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name string
+		a, b *AuditEntry
+	}{
+		{
+			name: "action_vs_decision",
+			a: &AuditEntry{Timestamp: ts, AgentID: "x", Action: "do", Decision: PolicyDecision("|allow"), PreviousHash: ""},
+			b: &AuditEntry{Timestamp: ts, AgentID: "x", Action: "do|", Decision: PolicyDecision("allow"), PreviousHash: ""},
+		},
+		{
+			name: "decision_vs_previous_hash",
+			a: &AuditEntry{Timestamp: ts, AgentID: "x", Action: "do", Decision: PolicyDecision("allow|deadbeef"), PreviousHash: ""},
+			b: &AuditEntry{Timestamp: ts, AgentID: "x", Action: "do", Decision: PolicyDecision("allow"), PreviousHash: "deadbeef"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if h1, h2 := computeHash(tc.a), computeHash(tc.b); h1 == h2 {
+				t.Errorf("hash collision across %s: %s == %s", tc.name, h1, h2)
+			}
+		})
+	}
+}
+
+// Regression: eviction via plain reslice kept the original backing array
+// alive; cap() grew proportional to total-logged count. After the fix,
+// cap() stays bounded close to MaxEntries.
+func TestMaxEntriesNoBackingArrayLeak(t *testing.T) {
+	al := NewAuditLogger()
+	al.MaxEntries = 5
+	for i := 0; i < 1000; i++ {
+		al.Log("agent", fmt.Sprintf("action-%d", i), Allow)
+	}
+	if got := len(al.entries); got != al.MaxEntries {
+		t.Fatalf("len(entries) = %d, want %d", got, al.MaxEntries)
+	}
+	if got := cap(al.entries); got > al.MaxEntries*4 {
+		t.Errorf("cap(entries) = %d, want close to %d (backing array leak)", got, al.MaxEntries)
+	}
+}

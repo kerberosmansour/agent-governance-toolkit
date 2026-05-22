@@ -12,11 +12,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Rust prompt guard tuning** - added `DetectionConfig::rule_overrides` and `DetectionConfig::threshold_overrides` so operators can opt into local built-in rule additions, stable-ID disables, and per-sensitivity threshold gates while preserving existing defaults.
+- **Rust operator CLI (`agt`)** - feature-gated (`cli`) command-line binary for the `agentmesh` crate exposing `check` (policy decision with a CI-friendly exit code), `policy validate`/`explain`, `audit tail`/`export`, and `trust show`/`set`. The CLI is a thin consumer of existing crate APIs and adds no new library surface; the default library build stays binary- and `clap`-free. (#2445)
 
-- **Rust prompt-injection detector** - `agentmesh::prompt_injection` with
-  typed detection results, configurable sensitivity/allowlist/blocklist/custom
-  patterns, bounded hash-only audit records, and a detector-backed
-  `PromptDefenseEvaluator` compatibility path.
+### Changed
+- **Rust prompt guard** - added custom configuration and audit interpretation examples, tuned escaped-sequence detection to reduce benign `\x` / `\u` false positives, and switched file-backed audit/federation persistence to compact atomic writes.
+- **Rust file durability** - file-backed audit and federation stores now sync parent directories after successful atomic renames on Unix-like platforms, surfacing directory-sync failures instead of silently claiming durability.
+
+### Fixed
+- **Rust build** - migrated `cedar_request` to the cedar-policy 4.x `Request::new` API (concrete `EntityUid`s, optional schema, `Result` return) so the `agentmesh` crate compiles after the cedar-policy 4.11 upgrade (#2418); behavior-preserving via a reserved placeholder for unspecified entities.
+
+
+## [3.6.0] - 2026-05-12
+
+### Highlights
+
+**Formal Specifications** - Six v1.0 specification documents published covering identity, trust, hypervisor, SRE, MCP security, framework adapters, and audit.
+
+**Security Hardening Sprint** - 319 fixes including path traversal guards, SSRF blocklist expansion, HMAC verification, shell injection prevention, and YAML deserialization hardening.
+
+**Cross-Org Agent Federation** - ExternalJWKSProvider (ADR-0007) enables federated identity verification across organizations.
+
+**Governance Sidecar Container** - Production-ready container image with OTEL bootstrap and Prometheus metrics endpoint.
+
+**Execution Ring Enforcement** - Privilege rings now enforce real isolation boundaries (previously stubs).
+
+### Added
+- **6 formal specifications** v1.0 - identity, trust, hypervisor, SRE, MCP security, adapters, audit (#2344, #2353, #2360, #2361, #2363, #2364, #2369, #2375)
+- **ExternalJWKSProvider** for cross-org agent federation (#2380)
+- **GovernanceEventSink SPI** for pluggable event routing (#2362)
+- **Governance sidecar container** with OTEL and Prometheus (#2307, #2312)
+- **Execution ring enforcement** beyond stubs (#2309)
+- **Trust ceiling propagation** for delegated child agents (#2306)
+- **StdoutAuditSink** with execution-context enrichment (#2302, #2305)
+- **Azure ACA sandbox provider** (#2236)
+- **AWS Bedrock Agent adapter** (#1833)
+- **RAG Governance** package with Cedar + LlamaIndex (#1754, #1820, #1975)
+- **Agent Shield** 5-stage guardrails integration (#1805)
+- **Copilot CLI governance package** (#2272)
+- **GitHub Actions governance gate** (#2102)
+- **NOT_IN operator** for policy evaluation (#2373)
+- **Presentation demos** - 6 self-contained offline scripts (#2390)
+- **25 retroactive ADRs** documenting prior decisions (#2329, #2377)
+
+### Fixed
+- **StdoutAuditSink syntax error** from overlapping merge (#2382)
+- **VectorClock** causal ordering and fail-closed SessionIsolation (#2346)
+- **Path traversal** guards in SRE, signing, and specs (#2352)
+- **HMAC verification** before nonce commit in MCP signer (#2354)
+- **SSRF blocklist** expanded for cloud metadata endpoints (#2358)
+- **YAML deserialization** hardened to JSON_SCHEMA (TypeScript) (#2333, #2334)
+- **Shell injection** prevention in Actions inputs (#2330)
+- **EU AI Act demo** Unicode encoding on Windows (#2388)
+
+### Changed
+- **Tutorials reorganized** into collapsible customer-centric categories (#2389)
+- **Repo structure simplified** with layout guide (#2391)
+- **ADK wrap/unwrap/get_callbacks** deprecated with runtime warnings (#2359)
+
 
 ## [3.5.0] - 2026-05-07
 
@@ -53,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tutorials 48-51** - Intent Auth, Multi-Agent Policies, Decision BOM, Cost Governance (#1781-#1784)
 - **Rust quickstart** example (#1677)
 - **Korean README translation** (#1729)
+- Added a dbt-backed data quality evidence adapter example under `examples/data-quality-aware-governance/adapters/dbt/`, showing how dbt `run_results.json` output can be mapped into policy-readable evidence for AGT governance decisions.
 
 ### Fixed
 - **Decision BOM resilience** - source exceptions no longer crash reconstruction; partial BOM returned (#1786)
@@ -175,7 +229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **AgentMesh Wire Protocol v1.0** specification (`docs/specs/AGENTMESH-WIRE-1.0.md`)
-- **TypeScript E2E Encryption** — X3DH + Double Ratchet + SecureChannel ported to `@microsoft/agentmesh-sdk`
+- **TypeScript E2E Encryption** — X3DH + Double Ratchet + SecureChannel ported to `@microsoft/agent-governance-sdk`
 - **MeshClient** — high-level relay transport with plaintext peers, KNOCK pending queue, wsFactory hook
 - **Registry Service** — first-party agent registry with pre-key bundles, discovery, presence, reputation
 - **Relay Service** — store-and-forward WebSocket relay with 72h TTL offline inbox
@@ -432,7 +486,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **TypeScript SDK full parity** (— PolicyEngine + AgentIdentity) — rich policy evaluation with 4 conflict resolution strategies, expression evaluator, rate limiting, YAML/JSON policy documents, Ed25519 identity with lifecycle/delegation/JWK/JWKS/DID export, IdentityRegistry with cascade revocation. 136 tests passing. (#269)
-- **@microsoft/agentmesh-sdk 1.0.0** — TypeScript package now publish-ready with `exports` field, `prepublishOnly` build hook, correct `repository.directory`, MIT license.
+- **@microsoft/agent-governance-sdk 1.0.0** — TypeScript package now publish-ready with `exports` field, `prepublishOnly` build hook, correct `repository.directory`, MIT license.
 - **Multi-language README** — root README now surfaces Python (PyPI), TypeScript (npm), and .NET (NuGet) install sections, badges, quickstart code, and a multi-SDK packages table.
 - **Multi-language QUICKSTART** — getting started guide now covers all three SDKs with code examples.
 - **Semantic Kernel + Azure AI Foundry** added to framework integration table.
@@ -490,7 +544,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 pip install agent-governance-toolkit[full]
 
 # TypeScript
-npm install @microsoft/agentmesh-sdk
+npm install @microsoft/agent-governance-sdk
 
 # .NET
 dotnet add package Microsoft.AgentGovernance
