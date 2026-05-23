@@ -22,6 +22,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Rust build** - migrated `cedar_request` to the cedar-policy 4.x `Request::new` API (concrete `EntityUid`s, optional schema, `Result` return) so the `agentmesh` crate compiles after the cedar-policy 4.11 upgrade (#2418); behavior-preserving via a reserved placeholder for unspecified entities.
 
+## [3.7.0] - 2026-05-18
+
+### Highlights
+
+**Release Hygiene** - opened the v3.7.0 development cycle with full release
+documentation for the v3.6.0 milestone.
+
+**Tool Usage Policies** - contributed the `ToolPolicy` schema to the Agent Spec
+standard, enabling declarative rate-limit, approval, and justification guards on
+tool invocations.
+
+### Added
+- **v3.6.0 release notes** documenting the full scope of the previous release.
+- **Presentation demos** committed to `examples/demos/presentation/` with six
+  offline scripts.
+- **EU AI Act demo** Windows UTF-8 fix.
+- **Repo structure** simplification and layout guidance.
+
+### Fixed
+- **StdoutAuditSink** overlapping merge fix.
+
+### Changed
+- **Tutorials** reorganized into customer-centric categories.
+
 
 ## [3.6.0] - 2026-05-12
 
