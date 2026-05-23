@@ -216,7 +216,7 @@ The public issue note is intentionally plain and does not mention the local SLO 
 - [x] Did I use a debugger or state-inspection tool when failure evidence was ambiguous? N/A - failures were clear from compiler/test output.
 - [x] Did I remove temporary proof edits, debug output, and placeholder logic?
 - [x] Did I record evidence rather than claims?
-- [x] Did I update the issue workpad and PR handoff notes?
+- [x] Did I update the issue and PR handoff notes?
 
 ---
 
@@ -248,5 +248,5 @@ The public issue note is intentionally plain and does not mention the local SLO 
 
 ### PR / Issue Links
 
-- PR: Pending
+- PR: <https://github.com/microsoft/agent-governance-toolkit/pull/2539>
 - Issue: <https://github.com/microsoft/agent-governance-toolkit/issues/2446>
