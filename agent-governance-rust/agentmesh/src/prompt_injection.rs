@@ -580,6 +580,8 @@ impl PromptInjectionDetector {
             .filter(|finding| self.passes_sensitivity(finding))
             .collect::<Vec<_>>();
 
+        filtered = filter_benign_security_discussion(text, filtered);
+
         if !self.config.allowlist.is_empty() {
             filtered = self.filter_allowlisted(text, filtered);
         }
@@ -1060,6 +1062,84 @@ fn has_malicious_intent_context(
 ) -> bool {
     contains_prompt_injection_intent(matched_entry)
         || contains_prompt_injection_intent(context_window(normalized_text, matched_span, 96))
+}
+
+fn filter_benign_security_discussion(text: &str, findings: Vec<Finding>) -> Vec<Finding> {
+    if findings.is_empty()
+        || !is_benign_security_discussion(text)
+        || has_actionable_instruction_context(text)
+    {
+        return findings;
+    }
+
+    findings
+        .into_iter()
+        .filter(|finding| {
+            matches!(
+                finding.injection_type,
+                InjectionType::CanaryLeak | InjectionType::MultiTurnEscalation
+            ) || finding.threat_level >= ThreatLevel::Critical
+        })
+        .collect()
+}
+
+fn is_benign_security_discussion(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    const MARKERS: &[&str] = &[
+        "security training",
+        "security research",
+        "research blog",
+        "threat-intel",
+        "threat intel",
+        "owasp",
+        "ncsc",
+        "cheat sheet",
+        "prompt injection prevention",
+        "prompt injection:",
+        "prompt injection is",
+        "detector",
+        "regex",
+        "reject inputs",
+        "document how attackers",
+        "benchmark",
+        "workshop notes",
+        "changelog",
+        "rule for",
+        "common jailbreak phrasings",
+    ];
+
+    contains_any(&lower, MARKERS)
+}
+
+fn has_actionable_instruction_context(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    const ACTIONABLE: &[&str] = &[
+        "please ",
+        "call ",
+        "send ",
+        "email ",
+        "fetch ",
+        "show ",
+        "paste ",
+        "print ",
+        "reveal ",
+        "delete_record",
+        "read_secret",
+        "http_request",
+    ];
+
+    ACTIONABLE.iter().any(|needle| {
+        lower
+            .match_indices(needle)
+            .any(|(start, _)| !is_inside_quoted_example(&lower, start))
+    })
+}
+
+fn is_inside_quoted_example(text: &str, index: usize) -> bool {
+    let before = &text[..index.min(text.len())];
+    let single_count = before.chars().filter(|ch| *ch == '\'').count();
+    let double_count = before.chars().filter(|ch| *ch == '"').count();
+    single_count % 2 == 1 || double_count % 2 == 1
 }
 
 fn context_window(text: &str, span: (usize, usize), radius: usize) -> &str {
