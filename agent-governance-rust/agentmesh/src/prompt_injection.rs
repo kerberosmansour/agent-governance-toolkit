@@ -1104,6 +1104,11 @@ fn is_benign_security_discussion(text: &str) -> bool {
         "benchmark",
         "workshop notes",
         "changelog",
+        "readme:",
+        "# test:",
+        "test:",
+        "example malicious input",
+        "handled by this library",
         "rule for",
         "common jailbreak phrasings",
     ];
@@ -1377,6 +1382,24 @@ const DIRECT_RULES: &[(&str, ThreatLevel, f64, &str)] = &[
         0.9,
         "do_not_follow",
     ),
+    (
+        r"(?i)\b(higher-priority|higher\s+priority)\s+instruction\s+overrides?\s+all\s+(prior|previous)\b",
+        ThreatLevel::High,
+        0.9,
+        "higher_priority_override",
+    ),
+    (
+        r"(?i)repeat\s+the\s+text\s+above.*starting\s+with",
+        ThreatLevel::High,
+        0.9,
+        "repeat_hidden_prompt_prefix",
+    ),
+    (
+        r"(?i)((print|reveal|show)\s+.*(canary\s+token|hidden\s+instructions|system\s+prompt)|(canary\s+token|hidden\s+instructions|system\s+prompt).*(print|reveal|show))",
+        ThreatLevel::High,
+        0.9,
+        "prompt_secret_extraction",
+    ),
 ];
 
 const DELIMITER_RULES: &[(&str, ThreatLevel, f64, &str)] = &[
@@ -1476,6 +1499,36 @@ const CONTEXT_RULES: &[(&str, ThreatLevel, f64, &str)] = &[
         ThreatLevel::Medium,
         0.75,
         "secret_password_override",
+    ),
+    (
+        r"(?i)\b(read_secret|http_request)\b.*\b(paste|post|send|env\s+vars?|exfil|https?://)",
+        ThreatLevel::High,
+        0.9,
+        "dangerous_tool_exfiltration",
+    ),
+    (
+        r"(?i)!\[[^\]]*\]\(https?://[^)]*\b(evil|leak|token|systemprompt|customer_emails)\b[^)]*\)",
+        ThreatLevel::High,
+        0.9,
+        "markdown_exfiltration_url",
+    ),
+    (
+        r"(?i)(<!--|system\s+note|footer:).*?\b(ignore\s+prior\s+instructions|call\s+delete_record|forward\s+all\s+secrets|email\s+the\s+customer)",
+        ThreatLevel::High,
+        0.9,
+        "indirect_document_instruction",
+    ),
+    (
+        r"(?i)remember\s+permanently:.*always\s+an?\s+administrator",
+        ThreatLevel::High,
+        0.9,
+        "persistent_admin_memory",
+    ),
+    (
+        r"(?i)tenant\s+[a-z].*fetch.*tenant\s+[a-z].*(invoice|record|data)",
+        ThreatLevel::High,
+        0.9,
+        "cross_tenant_fetch",
     ),
 ];
 
