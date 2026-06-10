@@ -232,5 +232,5 @@ N/A - this is a PR-review follow-up rather than a GitHub issue. AgentBus task `t
 
 ### PR / Issue Links
 
-- PR: Pending.
+- PR: [kerberosmansour/agent-governance-toolkit#22](https://github.com/kerberosmansour/agent-governance-toolkit/pull/22)
 - Issue: N/A - PR review follow-up.
