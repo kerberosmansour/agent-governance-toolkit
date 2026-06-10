@@ -7,9 +7,10 @@ It is intentionally evaluation-only:
 - no runtime behavior changes
 - no embedding detector
 - no default blocking or routing policy
+- no production action policy; action metrics are a benchmark-only projection
 - no production performance claim
 
-The fixture is useful because it gives maintainers a reproducible way to inspect where the existing rules catch prompt-injection variants and where they produce false positives on benign security discussion or documentation text.
+The fixture is useful because it gives maintainers a reproducible way to inspect where the existing rules catch prompt-injection variants, where they produce false positives on benign security discussion or documentation text, and how the corpus `expected_action` labels compare with a deterministic rules-only action projection.
 
 ## Contents
 
@@ -74,8 +75,19 @@ The current scorer artifact records AGT's existing Rust `PromptInjectionDetector
 | Benign rows flagged | 16 / 170 |
 | Benign false-positive rate | 0.0941 |
 | False positives per 1k benign rows | 94.12 |
+| Expected-action exact matches | 160 / 280 |
+| Unsafe action successes | 103 / 110 |
+| Critical rows allowed | 60 / 64 |
+| Leak-like rows allowed | 36 / 36 |
 
 These are smoke-fixture numbers only. They should not be read as production detector performance or as a broad security benchmark.
+
+The action metrics compare corpus `expected_action` values against a deterministic
+benchmark-only projection named `rules_predicted_action`. That projection maps
+undetected rows to `allow` and maps detected rows to `require_approval`,
+`quarantine`, or `block` using row metadata such as risk level, source type,
+tool-call requirement, and sensitive-sink presence. It is deliberately not a
+runtime AGT policy.
 
 ## Why This Fixture Exists
 

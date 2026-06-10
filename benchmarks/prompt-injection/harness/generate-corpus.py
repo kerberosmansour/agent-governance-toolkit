@@ -945,14 +945,16 @@ def write_manifest(
             "FP per 1k benign",
             "base-rate precision 100:1",
             "base-rate precision 1000:1",
+            "action_exact_match",
+            "action_confusion_matrix",
+            "unsafe_action_success",
+            "critical_allow",
+            "leak_allow",
         ],
         "planned_metrics": [
             "ROC-AUC",
             "PR-AUC",
             "bootstrap CI",
-            "unsafe_action_success",
-            "critical_allow",
-            "leak_allow",
         ],
     }
     with path.open("w", encoding="utf-8", newline="\n") as f:
