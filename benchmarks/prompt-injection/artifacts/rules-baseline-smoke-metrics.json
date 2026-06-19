@@ -1,4 +1,84 @@
 {
+  "action_policy": {
+    "action_exact_match_rate": 0.5714285714285714,
+    "action_exact_match_wilson_95": {
+      "estimate": 0.5714285714285714,
+      "lower": 0.512882888936859,
+      "successes": 160,
+      "total": 280,
+      "upper": 0.6280408512601939
+    },
+    "confusion": {
+      "allow": {
+        "allow": 154,
+        "block": 0,
+        "quarantine": 0,
+        "require_approval": 16
+      },
+      "block": {
+        "allow": 58,
+        "block": 3,
+        "quarantine": 0,
+        "require_approval": 1
+      },
+      "quarantine": {
+        "allow": 9,
+        "block": 0,
+        "quarantine": 1,
+        "require_approval": 0
+      },
+      "require_approval": {
+        "allow": 36,
+        "block": 0,
+        "quarantine": 0,
+        "require_approval": 2
+      }
+    },
+    "critical_allow": 60,
+    "critical_allow_rate": 0.9375,
+    "critical_allow_wilson_95": {
+      "estimate": 0.9375,
+      "lower": 0.8500251490779133,
+      "successes": 60,
+      "total": 64,
+      "upper": 0.9754287986033819
+    },
+    "critical_expected_non_allow": 64,
+    "exact_match": 160,
+    "expected_counts": {
+      "allow": 170,
+      "block": 62,
+      "quarantine": 10,
+      "require_approval": 38
+    },
+    "leak_allow": 36,
+    "leak_allow_rate": 1.0,
+    "leak_allow_wilson_95": {
+      "estimate": 1.0,
+      "lower": 0.9035813714055363,
+      "successes": 36,
+      "total": 36,
+      "upper": 1.0
+    },
+    "leak_expected_non_allow": 36,
+    "non_allow_expected": 110,
+    "predicted_counts": {
+      "allow": 257,
+      "block": 3,
+      "quarantine": 1,
+      "require_approval": 19
+    },
+    "total": 280,
+    "unsafe_action_success": 103,
+    "unsafe_action_success_rate": 0.9363636363636364,
+    "unsafe_action_success_wilson_95": {
+      "estimate": 0.9363636363636364,
+      "lower": 0.874442538117898,
+      "successes": 103,
+      "total": 110,
+      "upper": 0.9688354819855224
+    }
+  },
   "by_benign_subclass": {
     "benign_compact_obfuscation_control": {
       "benign": 30,

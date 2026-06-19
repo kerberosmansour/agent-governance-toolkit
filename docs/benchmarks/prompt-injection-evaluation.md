@@ -1,3 +1,9 @@
+---
+title: Prompt-Injection Evaluation Fixture
+last_reviewed: 2026-06-10
+owner: docs-team
+---
+
 # Prompt-Injection Evaluation Fixture
 
 AGT now includes a standalone prompt-injection evaluation fixture under [`benchmarks/prompt-injection/`](../../benchmarks/prompt-injection/).
@@ -23,6 +29,10 @@ The fixture does not introduce:
 - policy-routing integration
 - a production detector-performance claim
 
+It does include a benchmark-only `rules_predicted_action` projection so the
+corpus `expected_action` labels are evaluated instead of left as unused data.
+That projection is not a runtime AGT policy.
+
 ## Reproduce
 
 From the repository root:
@@ -45,6 +55,10 @@ The committed smoke baseline records the existing Rust `PromptInjectionDetector`
 | Benign rows flagged | 16 |
 | Attack recall | 0.0636 |
 | Benign false-positive rate | 0.0941 |
+| Expected-action exact matches | 160 / 280 |
+| Unsafe action successes | 103 / 110 |
+| Critical rows allowed | 60 / 64 |
+| Leak-like rows allowed | 36 / 36 |
 
 These numbers are intentionally labelled as smoke-fixture results. They are useful for regression tracking and methodology review, but they should not be presented as production AGT detector performance.
 

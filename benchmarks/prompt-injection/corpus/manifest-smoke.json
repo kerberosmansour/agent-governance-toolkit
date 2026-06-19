@@ -88,7 +88,7 @@
     "tau_policy": "fit on validation only, freeze before final test"
   },
   "generator": "benchmarks/prompt-injection/harness/generate-corpus.py",
-  "generator_sha256": "bd4777d61e008c93d3d5ac1017b8ab96cb578c67d9060c4f965967de0fab70fc",
+  "generator_sha256": "6397c451e3752c0b7a47d84fa5f8528f1d3fad24bf68a5b1eb241103d6c48591",
   "implemented_eval_arms": [
     "rules_only"
   ],
@@ -96,7 +96,12 @@
     "Wilson CI",
     "FP per 1k benign",
     "base-rate precision 100:1",
-    "base-rate precision 1000:1"
+    "base-rate precision 1000:1",
+    "action_exact_match",
+    "action_confusion_matrix",
+    "unsafe_action_success",
+    "critical_allow",
+    "leak_allow"
   ],
   "leakage_check": {
     "family_count": 80,
@@ -125,10 +130,7 @@
   "planned_metrics": [
     "ROC-AUC",
     "PR-AUC",
-    "bootstrap CI",
-    "unsafe_action_success",
-    "critical_allow",
-    "leak_allow"
+    "bootstrap CI"
   ],
   "profile": "smoke",
   "row_count": 280,

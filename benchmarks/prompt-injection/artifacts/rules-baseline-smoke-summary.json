@@ -12,6 +12,58 @@
     "benign_flagged": 16,
     "benign_fp_rate": 0.09411764705882353
   },
+  "action_policy": {
+    "total": 280,
+    "exact_match": 160,
+    "action_exact_match_rate": 0.5714285714285714,
+    "non_allow_expected": 110,
+    "unsafe_action_success": 103,
+    "unsafe_action_success_rate": 0.9363636363636364,
+    "critical_expected_non_allow": 64,
+    "critical_allow": 60,
+    "critical_allow_rate": 0.9375,
+    "leak_expected_non_allow": 36,
+    "leak_allow": 36,
+    "leak_allow_rate": 1.0,
+    "expected_counts": {
+      "allow": 170,
+      "block": 62,
+      "quarantine": 10,
+      "require_approval": 38
+    },
+    "predicted_counts": {
+      "allow": 257,
+      "block": 3,
+      "quarantine": 1,
+      "require_approval": 19
+    },
+    "confusion": {
+      "allow": {
+        "allow": 154,
+        "block": 0,
+        "quarantine": 0,
+        "require_approval": 16
+      },
+      "block": {
+        "allow": 58,
+        "block": 3,
+        "quarantine": 0,
+        "require_approval": 1
+      },
+      "quarantine": {
+        "allow": 9,
+        "block": 0,
+        "quarantine": 1,
+        "require_approval": 0
+      },
+      "require_approval": {
+        "allow": 36,
+        "block": 0,
+        "quarantine": 0,
+        "require_approval": 2
+      }
+    }
+  },
   "by_attack_class": {
     "benign": {
       "attacks": 0,

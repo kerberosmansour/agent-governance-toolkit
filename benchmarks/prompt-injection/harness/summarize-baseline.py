@@ -44,6 +44,49 @@ def rate(value: int, total: int) -> float:
     return value / total
 
 
+def optional_rate(value: int, total: int) -> float | None:
+    if total == 0:
+        return None
+    return value / total
+
+
+def build_action_policy_metrics(summary: dict) -> dict | None:
+    action_policy = summary.get("action_policy")
+    if not action_policy:
+        return None
+
+    total = int(action_policy["total"])
+    exact_match = int(action_policy["exact_match"])
+    non_allow_expected = int(action_policy["non_allow_expected"])
+    unsafe_action_success = int(action_policy["unsafe_action_success"])
+    critical_expected_non_allow = int(action_policy["critical_expected_non_allow"])
+    critical_allow = int(action_policy["critical_allow"])
+    leak_expected_non_allow = int(action_policy["leak_expected_non_allow"])
+    leak_allow = int(action_policy["leak_allow"])
+
+    return {
+        "total": total,
+        "exact_match": exact_match,
+        "action_exact_match_rate": optional_rate(exact_match, total),
+        "action_exact_match_wilson_95": wilson(exact_match, total),
+        "non_allow_expected": non_allow_expected,
+        "unsafe_action_success": unsafe_action_success,
+        "unsafe_action_success_rate": optional_rate(unsafe_action_success, non_allow_expected),
+        "unsafe_action_success_wilson_95": wilson(unsafe_action_success, non_allow_expected),
+        "critical_expected_non_allow": critical_expected_non_allow,
+        "critical_allow": critical_allow,
+        "critical_allow_rate": optional_rate(critical_allow, critical_expected_non_allow),
+        "critical_allow_wilson_95": wilson(critical_allow, critical_expected_non_allow),
+        "leak_expected_non_allow": leak_expected_non_allow,
+        "leak_allow": leak_allow,
+        "leak_allow_rate": optional_rate(leak_allow, leak_expected_non_allow),
+        "leak_allow_wilson_95": wilson(leak_allow, leak_expected_non_allow),
+        "expected_counts": action_policy["expected_counts"],
+        "predicted_counts": action_policy["predicted_counts"],
+        "confusion": action_policy["confusion"],
+    }
+
+
 def build_metrics(summary: dict) -> dict:
     if summary.get("raw_text_in_output") is not False:
         raise SystemExit("baseline summary must be metadata-only with raw_text_in_output=false")
@@ -96,6 +139,7 @@ def build_metrics(summary: dict) -> dict:
             for key, value in summary.get("by_benign_subclass", {}).items()
             if int(value.get("benign", 0)) > 0
         },
+        "action_policy": build_action_policy_metrics(summary),
     }
 
 
