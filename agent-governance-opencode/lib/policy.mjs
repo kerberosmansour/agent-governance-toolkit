@@ -73,12 +73,14 @@ export async function loadPolicy({
 
   let bundledDefaultError;
   let configuredPolicyError;
+  let configuredAdditionalContext = [];
   let compiledPolicy;
   let source = "bundled-default";
 
   if (existsSync(configuredPolicyPath)) {
     try {
       compiledPolicy = compilePolicy(await readJsonFile(configuredPolicyPath));
+      configuredAdditionalContext = toStringArray(compiledPolicy.raw?.additionalContext);
       source = process.env[USER_POLICY_ENV] ? "env" : "user";
     } catch (error) {
       configuredPolicyError = error;
@@ -94,7 +96,7 @@ export async function loadPolicy({
     }
   }
 
-  const runtime = createGovernanceRuntime(compiledPolicy);
+  const runtime = createGovernanceRuntime(compiledPolicy, configuredAdditionalContext);
   return {
     auditPath: resolvedAuditPath,
     bundledDefaultError,
@@ -358,11 +360,11 @@ export async function getPolicyStatus(state) {
   };
 }
 
-function createGovernanceRuntime(policy) {
+function createGovernanceRuntime(policy, configuredAdditionalContext) {
   const promptDefenseEvaluator = new PromptDefenseEvaluator();
   const promptDefenseReport = promptDefenseEvaluator.evaluate(policy.additionalContext.join("\n"));
   const configuredPromptDefenseReport = promptDefenseEvaluator.evaluate(
-    toStringArray(policy.raw?.additionalContext).join("\n"),
+    configuredAdditionalContext.join("\n"),
   );
   const mcpScanner = new McpSecurityScanner();
   const policyEngine = new PolicyEngine(buildLegacyRules(policy));
